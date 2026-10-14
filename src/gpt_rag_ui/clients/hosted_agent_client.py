@@ -549,6 +549,7 @@ class HostedAgentClient:
         async with self._http_client.stream(
             "POST",
             self.settings.invocations_url,
+            params={"api-version": "v1"},
             json=payload,
             headers=headers,
         ) as response:
@@ -574,9 +575,21 @@ class HostedAgentClient:
                             "response.created is missing its response object."
                         )
                     new_conversation_id = response_data.get("conversation_id")
-                    if not isinstance(new_conversation_id, str) or not new_conversation_id:
+                    conversation = response_data.get("conversation")
+                    if conversation is not None:
+                        if not isinstance(conversation, dict):
+                            raise HostedAgentProtocolError(
+                                "response.created has an invalid conversation object."
+                            )
+                        nested_id = conversation.get("id")
+                        if new_conversation_id is not None and new_conversation_id != nested_id:
+                            raise HostedAgentProtocolError(
+                                "response.created has conflicting conversation identifiers."
+                            )
+                        new_conversation_id = nested_id
+                    if not isinstance(new_conversation_id, str) or not new_conversation_id.strip():
                         raise HostedAgentProtocolError(
-                            "response.created is missing managed conversation_id."
+                            "response.created is missing a conversation identifier."
                         )
                     managed_conversation_id = new_conversation_id
                     yield "", {"conversation_id": new_conversation_id}

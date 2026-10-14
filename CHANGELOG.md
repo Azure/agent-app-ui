@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Hosted invocation compatibility.** Include the required `api-version=v1`
+  query parameter and accept the current Responses `conversation.id` envelope
+  alongside legacy `conversation_id`, rejecting malformed or conflicting IDs.
+- **Backend-specific history registration.** Hosted chat no longer registers
+  the classic Dapr-backed data layer; OAuth, feedback, session context and
+  classic authenticated history remain unchanged.
+
 ### Changed
 
 - Technically validate candidate exception registry updates without mandatory

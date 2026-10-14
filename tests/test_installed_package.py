@@ -138,7 +138,9 @@ with patch.object(cl, "on_chat_start", wraps=cl.on_chat_start) as start, \\
     register_callbacks()
     register_callbacks()
     assert start.call_count == resume.call_count == message.call_count == 1
-    assert data.call_count == oauth.call_count == 1
+    from gpt_rag_ui.services import chat
+    assert data.call_count == int(chat.CHAT_BACKEND == "orchestrator")
+    assert oauth.call_count == 1
 import dependencies
 from gpt_rag_ui.config import dependencies as owner
 assert dependencies.get_config is owner.get_config
