@@ -165,6 +165,16 @@ rejects first-turn uploads rather than fabricating an ID. A resumed Chainlit
 thread restores context from its ordered messages and obtains a fresh managed
 ID from the hosted runtime.
 
+Uploads also require the independent `DEPLOY_INGESTION_CONTAINER_APP` capability
+from the existing App Configuration provider. `false` hides upload controls in
+standalone and Entra Copilot modes and rejects attachments before ingestion URL
+or Dapr resolution with “Attachments are unavailable in this deployment.”
+Missing preserves legacy eligibility; `true` retains existing authentication and
+conversation checks. Invalid boolean values fail with a configuration error.
+Text chat and retrieval are unchanged; this does not add native Foundry IQ
+conversation uploads. Supported ingestion sources and deployment combinations
+remain owned by the [platform documentation](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/).
+
 Live acceptance still requires Basic and isolated topology validation,
 two-turn managed conversation continuity, and a two-user negative
 document-authorization test. These deployment and identity checks cannot be
