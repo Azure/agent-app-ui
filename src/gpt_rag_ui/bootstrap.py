@@ -13,6 +13,7 @@ from fastapi import FastAPI, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from gpt_rag_ui.config.appconfig import AppConfigClient
+from gpt_rag_ui.telemetry.boundary_diagnostics import log_boundary_failure
 from gpt_rag_ui.clients.blob import BlobClient
 from gpt_rag_ui.config.dependencies import get_config
 from gpt_rag_ui.config.resources import get_asset_root
@@ -913,7 +914,7 @@ def _create_chainlit_app(
                 routes=chainlit_app.routes,
             )
         except Exception:
-            logger.exception("OpenAPI generation failed; schema unavailable, retry required")
+            log_boundary_failure(logger, "OpenAPI generation failed; schema unavailable, retry required")
             raise
         return chainlit_app.openapi_schema
 

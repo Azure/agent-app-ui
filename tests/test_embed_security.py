@@ -1205,7 +1205,14 @@ class BridgeGuardTests(unittest.IsolatedAsyncioTestCase):
                 await sio.eio.handlers["connect"]("engine", transport_environ())
                 with self.assertLogs(embed_security.logger, level="ERROR") as logs:
                     self.assertIsNone(await sio.eio.handlers["disconnect"]("engine"))
-                self.assertTrue(any(f"{stage} failed" in line for line in logs.output))
+                expected = {
+                    "namespaces": "Failed to enumerate Socket.IO namespaces",
+                    "lookup": "Failed to resolve a Socket.IO transport",
+                    "disconnect": "Failed to force Socket.IO manager cleanup",
+                }[stage]
+                self.assertTrue(any(expected in line for line in logs.output))
+                self.assertNotIn(f"{stage} failed", "\n".join(logs.output))
+                self.assertTrue(all(record.exc_info is None for record in logs.records))
                 self.assertIsNone(await embed_security._copilot_socket_registry.engineio_session("engine"))
 
     async def test_failed_session_disconnect_retains_denied_binding(self):

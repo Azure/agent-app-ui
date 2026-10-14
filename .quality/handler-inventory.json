@@ -1,103 +1,13 @@
 {
   "schema_version": 1,
-  "source_revision": "1ef7539d7a04e388afe850b09e53f5fb12be3a76",
+  "source_revision": "ec1a12912ae0771231274da9970684ffd92ac851",
   "state": "unapproved",
   "handlers": [
     {
-      "module_id": "gpt_rag_ui.api.download_routes",
-      "symbol": "register_secure_download_route.download_blob_file",
-      "line": 104,
-      "handler_fingerprint": "b756bff96eda34351f57aba6b1c3fe329e1d500e669db581dcdb139a1e6e0a2d",
-      "caught_types": [
-        "Exception"
-      ],
-      "unsupported": false
-    },
-    {
       "module_id": "gpt_rag_ui.api.feedback",
       "symbol": "register_feedback_handlers.handle_feedback",
-      "line": 136,
-      "handler_fingerprint": "960a5e976e25e1e71e579ca4d06749b5e3ec868e375ff47353f60884ddf28fd4",
-      "caught_types": [
-        "Exception"
-      ],
-      "unsupported": false
-    },
-    {
-      "module_id": "embed_auth",
-      "symbol": "CopilotSessionStore._notify_invalidated",
-      "line": 174,
-      "handler_fingerprint": "ee84c052306e126a4806e67c8e15feffcf73a63294804d629ae0c1e59d693b62",
-      "caught_types": [
-        "Exception"
-      ],
-      "unsupported": false
-    },
-    {
-      "module_id": "embed_security",
-      "symbol": "CopilotSocketRegistry.bind_connection",
-      "line": 298,
-      "handler_fingerprint": "6e6629412e9cc7c57e4a00e23d815331c9645753f8c54b583b2e494c18931a78",
-      "caught_types": [
-        "Exception"
-      ],
-      "unsupported": false
-    },
-    {
-      "module_id": "embed_security",
-      "symbol": "CopilotSocketRegistry.disconnect_session",
-      "line": 479,
-      "handler_fingerprint": "4c0b76598807ea2c2354b694e6dfa8231207d104845e22dd2234d142d5c83a37",
-      "caught_types": [
-        "Exception"
-      ],
-      "unsupported": false
-    },
-    {
-      "module_id": "embed_security",
-      "symbol": "_target_has_copilot_sockets",
-      "line": 984,
-      "handler_fingerprint": "f32bcc076c9df5109e20369857d83491585c57dfcaff7fbfd856f9fbc2462095",
-      "caught_types": [
-        "Exception"
-      ],
-      "unsupported": false
-    },
-    {
-      "module_id": "embed_security",
-      "symbol": "disconnect_copilot_session",
-      "line": 1133,
-      "handler_fingerprint": "2a8561cb32d5bc9bbd7d8a97ed77033906a84087036941eb24a435f460d59d61",
-      "caught_types": [
-        "Exception"
-      ],
-      "unsupported": false
-    },
-    {
-      "module_id": "embed_security",
-      "symbol": "disconnect_copilot_session",
-      "line": 1144,
-      "handler_fingerprint": "767f30df3d2c994058add75878ffceb0b5647093ee1fe4a5d70a9d55c88b135e",
-      "caught_types": [
-        "Exception"
-      ],
-      "unsupported": false
-    },
-    {
-      "module_id": "embed_security",
-      "symbol": "_terminate_socket",
-      "line": 1170,
-      "handler_fingerprint": "3c54455817d43acb6b53599c65f8068719f50f7cbd87d4a8b7772cd507ef61ce",
-      "caught_types": [
-        "Exception"
-      ],
-      "unsupported": false
-    },
-    {
-      "module_id": "embed_security",
-      "symbol": "_terminate_socket",
-      "line": 1180,
-      "handler_fingerprint": "4be83a749d9b20b8afcb438353ab909c8a7a8ff11b952de879ff1acea435e8a8",
+      "line": 144,
+      "handler_fingerprint": "9601a863df38f68150ffe5e5e271bcca00a3aa72b29aef0908922b67e312c832",
       "caught_types": [
         "Exception"
       ],
@@ -106,8 +16,118 @@
     {
       "module_id": "embed_security",
       "symbol": "configure_copilot_bridge_guards.disconnect_socket",
-      "line": 1237,
-      "handler_fingerprint": "f33d760a3bd5d791b6b43556292ecd9a6982463b182f4fd59381af6fb6580161",
+      "line": 1267,
+      "handler_fingerprint": "2d819a865b36cc04496168f08aea00216a82347f49d65411f9faa4ab1b9a6ec8",
+      "caught_types": [
+        "Exception"
+      ],
+      "unsupported": false
+    },
+    {
+      "module_id": "gpt_rag_ui.api.download_routes",
+      "symbol": "register_secure_download_route.download_blob_file",
+      "line": 105,
+      "handler_fingerprint": "ea27f01138258ee18dc29fc3f0cf19d238a02cfd203f0bd0121e13d05df132cb",
+      "caught_types": [
+        "Exception"
+      ],
+      "unsupported": false
+    },
+    {
+      "module_id": "gpt_rag_ui.api.feedback",
+      "symbol": "register_feedback_handlers.handle_feedback",
+      "line": 127,
+      "handler_fingerprint": "5754b34c00eb31d439a9770d6ee1ef8e2bf6c44c77193ef80f64c00d0e20d26a",
+      "caught_types": [
+        "Exception"
+      ],
+      "unsupported": false
+    },
+    {
+      "module_id": "embed_auth",
+      "symbol": "CopilotSessionStore._notify_invalidated",
+      "line": 175,
+      "handler_fingerprint": "6b8fd6402ce8aefe8bdf5927e3220e2e77c4da5043fb1370ea3382d3920dd481",
+      "caught_types": [
+        "Exception"
+      ],
+      "unsupported": false
+    },
+    {
+      "module_id": "embed_security",
+      "symbol": "CopilotSocketRegistry.bind_connection",
+      "line": 308,
+      "handler_fingerprint": "7c9e97958fc3a394bf5a7ba3186e149e343084ae96608a0d68b1a1c5d231b4f1",
+      "caught_types": [
+        "Exception"
+      ],
+      "unsupported": false
+    },
+    {
+      "module_id": "embed_security",
+      "symbol": "CopilotSocketRegistry.disconnect_session",
+      "line": 506,
+      "handler_fingerprint": "f8fafe292eb7bd758684abcabe3abf5cd2f679db0f5175a965592c323363663d",
+      "caught_types": [
+        "Exception"
+      ],
+      "unsupported": false
+    },
+    {
+      "module_id": "embed_security",
+      "symbol": "_target_has_copilot_sockets",
+      "line": 1011,
+      "handler_fingerprint": "6647ec551e5e108b83c460853cef4b82694614f4190195f6940f49867534b2c3",
+      "caught_types": [
+        "Exception"
+      ],
+      "unsupported": false
+    },
+    {
+      "module_id": "embed_security",
+      "symbol": "disconnect_copilot_session",
+      "line": 1160,
+      "handler_fingerprint": "f126f99ec58d631ae2495d9aae0df0046ee8e82df29e25af1f5682965d9ed793",
+      "caught_types": [
+        "Exception"
+      ],
+      "unsupported": false
+    },
+    {
+      "module_id": "embed_security",
+      "symbol": "disconnect_copilot_session",
+      "line": 1171,
+      "handler_fingerprint": "7d897438c4c05800a7f1a24d48b817d314dc5c441beedab8da458ba1a8d4d069",
+      "caught_types": [
+        "Exception"
+      ],
+      "unsupported": false
+    },
+    {
+      "module_id": "embed_security",
+      "symbol": "_terminate_socket",
+      "line": 1197,
+      "handler_fingerprint": "fe54814940b16bf710cba38c94cee0ef7c4e4b146d4676b5a04d9e6b2b30e8bb",
+      "caught_types": [
+        "Exception"
+      ],
+      "unsupported": false
+    },
+    {
+      "module_id": "embed_security",
+      "symbol": "_terminate_socket",
+      "line": 1207,
+      "handler_fingerprint": "389838963dc7b28cf257f55ae3b102a8e58cfe92dc3f9b7990366d04ef031520",
+      "caught_types": [
+        "Exception"
+      ],
+      "unsupported": false
+    },
+    {
+      "module_id": "embed_security",
+      "symbol": "configure_copilot_bridge_guards.disconnect_socket",
+      "line": 1264,
+      "handler_fingerprint": "3e7d5533c6158c88d52cd614b75ca662d6c061055693f4aaabcfe710485db7c8",
       "caught_types": [
         "Exception"
       ],
@@ -116,8 +136,8 @@
     {
       "module_id": "embed_security",
       "symbol": "configure_copilot_bridge_guards.close_rejected_socket",
-      "line": 1267,
-      "handler_fingerprint": "db80c8a03d2058c018fb9d7fc1e0a316c3acb5a507ab8fff57657f35d2f07659",
+      "line": 1298,
+      "handler_fingerprint": "79105f21e100ac3ea82664d7af2197631559d32f7a75f2582f305e431c20ca54",
       "caught_types": [
         "Exception"
       ],
@@ -126,7 +146,7 @@
     {
       "module_id": "embed_security",
       "symbol": "configure_copilot_bridge_guards.guarded_engineio_connect",
-      "line": 1308,
+      "line": 1339,
       "handler_fingerprint": "6f3cb7b0bb2d3b8fe7a19bc2559160c28ba9aa1887bf38fad362232b30592595",
       "caught_types": [
         "BaseException"
@@ -136,8 +156,8 @@
     {
       "module_id": "embed_security",
       "symbol": "configure_copilot_bridge_guards.guarded_engineio_disconnect",
-      "line": 1342,
-      "handler_fingerprint": "46c8675c61b6caf2e6e8d12cb8589d6bddac1f01a44764cbdfbc2921add13c05",
+      "line": 1377,
+      "handler_fingerprint": "7ffd476afc58f95422c5c4e904edeb344751e58e6c40c1952ea7b8e514386bf2",
       "caught_types": [
         "Exception"
       ],
@@ -146,8 +166,8 @@
     {
       "module_id": "embed_security",
       "symbol": "configure_copilot_bridge_guards.guarded_engineio_disconnect",
-      "line": 1350,
-      "handler_fingerprint": "7ed9c1f24af71facb62bbf72f2bcddb5902b989ffa7b59b4004320b7fe0d218d",
+      "line": 1385,
+      "handler_fingerprint": "5634f57850672be0ef6d80d8292a730d7d637480cdaf885b94d50d0729f60c7b",
       "caught_types": [
         "Exception"
       ],
@@ -156,8 +176,8 @@
     {
       "module_id": "embed_security",
       "symbol": "configure_copilot_bridge_guards.guarded_engineio_disconnect",
-      "line": 1362,
-      "handler_fingerprint": "1abdf18fb4f6b76ab843ebf18b2ea6b0b951603cc8ed5e1e80bf92760f76f55d",
+      "line": 1397,
+      "handler_fingerprint": "19a67130404f9b819c37276d16207bc6afa732f728030e342139624ae2170e11",
       "caught_types": [
         "Exception"
       ],
@@ -166,8 +186,8 @@
     {
       "module_id": "embed_security",
       "symbol": "configure_copilot_bridge_guards.guarded_engineio_disconnect",
-      "line": 1376,
-      "handler_fingerprint": "ceb8bbe7ef1967073771e38ea5f53368cee4e33defd71f090a3f8688d7ebf9e6",
+      "line": 1411,
+      "handler_fingerprint": "9b41637957b7fe156c2f44eefe944b17a24c096054de53794df4c8d49b0f1bc0",
       "caught_types": [
         "Exception"
       ],
@@ -176,8 +196,8 @@
     {
       "module_id": "embed_security",
       "symbol": "configure_copilot_bridge_guards.guarded_connect",
-      "line": 1639,
-      "handler_fingerprint": "6023a5c3b914404c725fb2ccb659e0080e9855a8972b24ea78c54e4e881b33b3",
+      "line": 1675,
+      "handler_fingerprint": "ffd0495b5a7fffaeeccb089f1863573b04715fad7cfd05500d8c4537c8ae77e5",
       "caught_types": [
         "Exception"
       ],
@@ -186,7 +206,7 @@
     {
       "module_id": "embed_security",
       "symbol": "configure_copilot_bridge_guards.guarded_disconnect",
-      "line": 1711,
+      "line": 1747,
       "handler_fingerprint": "7ee3c2cc97faa8c215207137892fee1838625a03721792843ddfb6a41e2857a9",
       "caught_types": [
         "Exception"
@@ -196,8 +216,8 @@
     {
       "module_id": "main",
       "symbol": "_create_chainlit_app.handle_file_download",
-      "line": 819,
-      "handler_fingerprint": "3c9d182751070ab794e358cbda085758a40232508aa6834d6510b420075e37df",
+      "line": 828,
+      "handler_fingerprint": "f12b32d3233cf4a947884face7bdc8a86851c3f502456545ad3271c0f315e487",
       "caught_types": [
         "Exception"
       ],
@@ -206,8 +226,8 @@
     {
       "module_id": "main",
       "symbol": "_create_chainlit_app._safe_openapi",
-      "line": 914,
-      "handler_fingerprint": "362e2634ddc54a64a9ccb55ce7f04722bd7d0d1e1d18f53b6bcae77484367205",
+      "line": 916,
+      "handler_fingerprint": "9bb99cf79178e9fb367752844f21d5405a1a31a436298c333cde4a369057652e",
       "caught_types": [
         "Exception"
       ],
@@ -216,8 +236,8 @@
     {
       "module_id": "app",
       "symbol": "get_auth_info",
-      "line": 299,
-      "handler_fingerprint": "340bc8608e8c309f545703ffec7de3d0f8593ef209c5ec5fc2926bc4ef62611a",
+      "line": 300,
+      "handler_fingerprint": "bf0ec6030fe1c98ded509c27e73724060f97261d38264fb8982fc8b3ba2a1ee7",
       "caught_types": [
         "Exception"
       ],
@@ -226,8 +246,8 @@
     {
       "module_id": "app",
       "symbol": "handle_message",
-      "line": 619,
-      "handler_fingerprint": "28432097d5e316c53871f35a15bae778d07207b7d5bfe4456053b36d6c2d0d4a",
+      "line": 624,
+      "handler_fingerprint": "5c98bae1918793c0ad9a242c52a7127cafe99b6fc4d0091f823482a054d9ea7d",
       "caught_types": [
         "Exception"
       ],
@@ -236,8 +256,8 @@
     {
       "module_id": "app",
       "symbol": "handle_message",
-      "line": 893,
-      "handler_fingerprint": "745f35b8acf978f9806573704dd103ef503cecb3dcbd1b84eb5df58488d9ebd2",
+      "line": 914,
+      "handler_fingerprint": "ad6979e446f0019651c4c18b10b66abf39ce0c75ed3b030df95cba4c4a9f10e0",
       "caught_types": [
         "Exception"
       ],
@@ -246,8 +266,8 @@
     {
       "module_id": "app",
       "symbol": "handle_message",
-      "line": 1043,
-      "handler_fingerprint": "1c63d8d3596fd52c1ca0c8f8ef8e81cce533d248265762e77b05fed6b31d3a8a",
+      "line": 1064,
+      "handler_fingerprint": "98757639cc367aacceacedee9b66ed04260a44defd022087f363614f1891a107",
       "caught_types": [
         "Exception"
       ],
@@ -256,8 +276,8 @@
     {
       "module_id": "app",
       "symbol": "handle_message",
-      "line": 1220,
-      "handler_fingerprint": "207aa65b444e45b6567319918d07ecdeebb01080c281dab60bd57326131f6b63",
+      "line": 1241,
+      "handler_fingerprint": "b197d32b6d5d9ae50f4040e7a9bee6a654c52ca382ac97c930c6ec6763f80a01",
       "caught_types": [
         "Exception"
       ],
@@ -266,8 +286,8 @@
     {
       "module_id": "gpt_rag_ui.services.citations",
       "symbol": "_resolve_legacy_reference_href",
-      "line": 157,
-      "handler_fingerprint": "03cb111ed45f097249afcbd161767a555a30e0614aee2a3a906bdb6120dbc93a",
+      "line": 158,
+      "handler_fingerprint": "d31971852bf36742a19710bbdeaf95cd888d88c3e28243348a31e3c57053dd70",
       "caught_types": [
         "Exception"
       ],
@@ -276,8 +296,8 @@
     {
       "module_id": "hosted_continuity",
       "symbol": "HostedContinuityCoordinator.run_turn",
-      "line": 354,
-      "handler_fingerprint": "dc6e603ecd7756c1eb6ae4ec785ef18eff71de07bf79d56f150443c1b4157363",
+      "line": 356,
+      "handler_fingerprint": "d1e58c9a181daa2e14557aa350d733791d8ea47639193e748d216721153dffaa",
       "caught_types": [
         "Exception"
       ],

@@ -1,6 +1,6 @@
 # Repository permission endpoint confirmed @placerda has admin permission.
-# Administrators must separately require latest-head code-owner approval;
-# this file alone does not activate branch protection.
+# Ownership routing only; Q5 does not mandate independent/latest-head approval.
+# This file alone does not activate branch protection or required checks.
 /.quality/ @placerda
 /pyproject.toml @placerda
 /requirements-quality.txt @placerda

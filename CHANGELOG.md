@@ -1,6 +1,23 @@
 # Changelog
 
-## [Unreleased]
+## [v3.2.2] - 2026-10-14
+
+### Fixed
+
+- **Hosted invocation compatibility.** Include the required `api-version=v1`
+  query parameter and accept the current Responses `conversation.id` envelope
+  alongside legacy `conversation_id`, rejecting malformed or conflicting IDs.
+- **Backend-specific history registration.** Hosted chat no longer registers
+  the classic Dapr-backed data layer; OAuth, feedback, session context and
+  classic authenticated history remain unchanged.
+
+### Changed
+
+- Technically validate candidate exception registry updates without mandatory
+  independent approval or registry-only policy blocking. Preserve expiry,
+  source-bound passing behavior evidence, protected evaluator/tool/workflow
+  integrity and fail-closed CI aggregation. Protected-checker adoption remains
+  required; this does not change runtime behavior or repository review settings.
 
 ## [v3.2.1] - 2026-10-08
 

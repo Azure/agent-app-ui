@@ -27,6 +27,7 @@ from gpt_rag_ui.auth.auth_common import canonical_principal_id, is_user_authoriz
 from gpt_rag_ui.config.appconfig import AppConfigClient
 from gpt_rag_ui.config.embed_config import EmbedSettings
 from gpt_rag_ui.auth.entra_token import EntraTokenError
+from gpt_rag_ui.telemetry.boundary_diagnostics import log_boundary_failure
 
 
 COPILOT_SESSION_COOKIE = "gpt_rag_copilot_session"
@@ -172,7 +173,7 @@ class CopilotSessionStore:
             try:
                 await self._on_invalidate(session_id)
             except Exception:
-                logger.exception(
+                log_boundary_failure(logger,
                     "Failed to disconnect invalidated Copilot session"
                 )
 

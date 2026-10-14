@@ -11,6 +11,7 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
 from gpt_rag_ui.auth.embed_auth import CopilotSessionStore
+from gpt_rag_ui.telemetry.boundary_diagnostics import log_boundary_failure
 from gpt_rag_ui.services.conversation_security import get_owned_conversation
 from gpt_rag_ui.services.download_security import (
     BlobDownloader, ConversationResolver, DownloadStream, DownloadTokenManager,
@@ -102,7 +103,7 @@ def register_secure_download_route(
                 headers={"Cache-Control": "no-store"},
             ) from exc
         except Exception as exc:
-            logger.exception(
+            log_boundary_failure(logger,
                 "Authorized download failed: conversation=%s container=%s",
                 grant.conversation_id,
                 grant.container,

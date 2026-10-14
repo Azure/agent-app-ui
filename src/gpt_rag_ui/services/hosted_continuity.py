@@ -67,6 +67,7 @@ from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Any
 
 from gpt_rag_ui.auth.auth_common import normalize_guid
+from gpt_rag_ui.telemetry.boundary_diagnostics import log_boundary_failure
 from gpt_rag_ui.clients.hosted_agent_client import HostedAgentError, InvocationMessage, call_hosted_agent_stream
 from gpt_rag_ui.config.hosted_continuity_config import HostedContinuitySettings
 from gpt_rag_ui.clients.hosted_conversation_capability import (
@@ -353,7 +354,7 @@ class HostedContinuityCoordinator:
             try:
                 await self._on_conversation_created(canonical_oid, conversation_id)
             except Exception:
-                logger.exception(
+                log_boundary_failure(logger,
                     "Panel owner-index write failed for a newly created "
                     "hosted conversation; continuing the turn (a missed "
                     "write hides the panel list row and denies panel "

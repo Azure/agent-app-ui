@@ -546,7 +546,7 @@ class TestHostedAgentClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(capture[0]["method"], "POST")
         self.assertEqual(
             capture[0]["url"],
-            "https://agent.example.com/protocol/invocations",
+            "https://agent.example.com/protocol/invocations?api-version=v1",
         )
         transmitted_authorization = capture[0]["headers"]["authorization"]
         self.assertEqual(
@@ -675,6 +675,65 @@ class TestHostedAgentClient(unittest.IsolatedAsyncioTestCase):
             "access_token",
         ):
             self.assertNotIn(forbidden, captures[1])
+
+    async def test_accepts_canonical_conversation_object(self):
+        body = _frame(
+            "response.created",
+            {"response": {"conversation": {"id": "conv-managed"}}},
+        ) + _completed()
+        client = await self._client_for_body(body)
+        results = await self._collect(client, [InvocationMessage("user", "hello")])
+        self.assertIn(("", {"conversation_id": "conv-managed"}), results)
+        self.assertTrue(any(meta.get("completed") for _, meta in results))
+
+    async def test_accepts_matching_canonical_and_legacy_identifiers(self):
+        body = _frame(
+            "response.created",
+            {
+                "response": {
+                    "conversation": {"id": "conv-managed"},
+                    "conversation_id": "conv-managed",
+                }
+            },
+        ) + _completed()
+        client = await self._client_for_body(body)
+        results = await self._collect(client, [InvocationMessage("user", "hello")])
+        self.assertIn(("", {"conversation_id": "conv-managed"}), results)
+
+    async def test_rejects_malformed_conversation_identifiers(self):
+        invalid_responses = [
+            {},
+            {"conversation_id": ""},
+            {"conversation_id": "   "},
+            {"conversation_id": 42},
+            {"conversation": "conv-managed"},
+            {"conversation": {}},
+            {"conversation": {"id": ""}},
+            {"conversation": {"id": "   "}},
+            {"conversation": {"id": 42}},
+            {"conversation": {"id": None}},
+        ]
+        for response in invalid_responses:
+            with self.subTest(response=response):
+                client = await self._client_for_body(
+                    _frame("response.created", {"response": response}) + _completed()
+                )
+                with self.assertRaises(HostedAgentProtocolError):
+                    await self._collect(client, [InvocationMessage("user", "hello")])
+
+    async def test_rejects_conflicting_conversation_identifiers(self):
+        body = _frame(
+            "response.created",
+            {
+                "response": {
+                    "conversation": {"id": "conv-managed"},
+                    "conversation_id": "another-conversation",
+                }
+            },
+        ) + _completed()
+        client = await self._client_for_body(body)
+        with self.assertRaisesRegex(HostedAgentProtocolError, "conflicting"):
+            await self._collect(client, [InvocationMessage("user", "hello")])
 
     async def test_error_frame_raises_typed_error(self):
         body = _created("conv-1") + _frame(

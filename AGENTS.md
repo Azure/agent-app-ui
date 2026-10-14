@@ -151,8 +151,11 @@ orchestrator.
   exact-source receipt requirements and protected aggregation.
 - The quality evaluator uses a separate environment built from protected
   requirements/tool pins and does not install candidate application code.
-  Keep isolated static-tool execution intact. Candidate exception proposals
-  are review requests, never active approvals or blanket inherited waivers.
+  Keep isolated static-tool execution intact. Candidate exception records are
+  technically validated with exact-source passing evidence, expiry and stage;
+  `active` is eligibility, not human approval. Independent review is not
+  mandatory and registry edits alone do not block. Checker/tool/workflow
+  integrity remains protected; no blanket inherited waivers are permitted.
 - `container-tests` builds an ephemeral Linux image and runs the explicit
   offline `tests/container_smoke.py` helper with read-only mounted tests.
   `quality-gate` requires its real result; no image is published or deployed.

@@ -29,7 +29,7 @@ class BoundaryFailureTests(unittest.IsolatedAsyncioTestCase):
 
                 async def failure(*args, **kwargs):
                     try:
-                        raise RuntimeError("backend failure")
+                        raise RuntimeError("private-backend-token-sentinel")
                         yield
                     finally:
                         closed.append(True)
@@ -56,8 +56,10 @@ class BoundaryFailureTests(unittest.IsolatedAsyncioTestCase):
                 }
                 for name, value in patches.items():
                     stack.enter_context(patch.object(chat, name, value, create=True))
-                with self.assertLogs(chat.logger, level="ERROR"):
+                with self.assertLogs(chat.logger, level="ERROR") as logs:
                     await chat.handle_message(SimpleNamespace(id="failure-reference", content="question", elements=[]))
+                self.assertNotIn("private-backend-token-sentinel", "\n".join(logs.output))
+                self.assertTrue(all(record.exc_info is None for record in logs.records))
                 self.assertIn("technical issue", response.content)
                 self.assertIn("failure-reference", response.content)
                 self.assertEqual([True], closed)
@@ -260,15 +262,17 @@ class BoundaryFailureTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(chat, "cl", SimpleNamespace(user_session=session)),
             patch.object(chat, "auth_oauth", SimpleNamespace(
-                ensure_fresh_user_access_token=AsyncMock(side_effect=RuntimeError("refresh failure")),
+                ensure_fresh_user_access_token=AsyncMock(side_effect=RuntimeError("private-refresh-token")),
             ), create=True),
-            self.assertLogs(chat.logger, level="WARNING"),
+            self.assertLogs(chat.logger, level="WARNING") as logs,
         ):
             result = await chat.get_auth_info()
         self.assertFalse(result["authorized"])
         self.assertEqual("session_expired", result["auth_error"])
         self.assertIsNone(result["access_token"])
         session.set.assert_called_once_with("user", None)
+        self.assertNotIn("private-refresh-token", "\n".join(logs.output))
+        self.assertTrue(all(record.exc_info is None for record in logs.records))
 
     async def test_feedback_boundary_emits_failure_toast_not_success(self):
         from gpt_rag_ui.api import feedback
@@ -397,9 +401,10 @@ class BoundaryFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_invalidation_callback_failure_does_not_skip_other_sessions(self):
         callback = AsyncMock(side_effect=[RuntimeError("disconnect failure"), None])
         store = CopilotSessionStore(max_sessions=2, ttl_seconds=120, on_invalidate=callback)
-        with self.assertLogs("gpt_rag_ui.embed_auth", level="ERROR"):
+        with self.assertLogs("gpt_rag_ui.embed_auth", level="ERROR") as logs:
             await store._notify_invalidated(["first", "second", "first"])
         self.assertEqual(["first", "second"], [call.args[0] for call in callback.await_args_list])
+        self.assertNotIn("disconnect failure", "\n".join(logs.output))
 
     async def test_cancellation_is_not_converted_to_successful_invalidation(self):
         store = CopilotSessionStore(
@@ -412,6 +417,9 @@ class BoundaryFailureTests(unittest.IsolatedAsyncioTestCase):
         from gpt_rag_ui.services import citations
         with (
             patch.object(citations, "generate_blob_sas_url", side_effect=RuntimeError("signing failure")),
-            self.assertLogs(citations.logger, level="WARNING"),
+            self.assertLogs(citations.logger, level="WARNING") as logs,
         ):
-            self.assertIsNone(citations._resolve_legacy_reference_href("document.pdf"))
+            self.assertIsNone(citations._resolve_legacy_reference_href("document.pdf?sig=private-sas-token"))
+        self.assertNotIn("signing failure", "\n".join(logs.output))
+        self.assertNotIn("private-sas-token", "\n".join(logs.output))
+        self.assertTrue(all(record.exc_info is None for record in logs.records))

@@ -192,10 +192,15 @@ can be consumed. The separate `.github/scripts/run-unittest.py` uses standard
 `unittest` discovery and records each exact test method, source fingerprints
 and outcome. Referenced skipped/expected-failure tests are not passing evidence;
 failed subtests, unexpected successes, stale source or a failed suite cannot
-approve a boundary. Exception records must also be active in the protected base,
+validate a boundary. Candidate exception records must be active (eligible for
+technical validation, not independently approved),
 match the exact source/caught types, have an unexpired `expires_on` date and
 not have passed their `review_by_stage` (`bootstrap`, `blocking`, `strict`).
 Contractual best-effort outcomes remain representable; logging is not approval.
+Registry edits alone do not cause a policy-change finding. Independent human
+review and approval strings are not prerequisites; `review` remains nonempty
+provenance for schema compatibility. Proposed/retired records cannot be consumed.
+Only technically validated exact sites exempt BLE001; other lint findings remain.
 
 For a local, same-run receipt in PowerShell:
 
@@ -246,30 +251,53 @@ without being described as full-repository typing coverage.
 Ruff selects F821, E722, BLE001, PGH003, PGH004 and RUF100. The supplementary
 AST handler inventory includes logged and re-raised broad handlers that BLE001
 exempts. `.quality/handler-inventory.json` records the remaining sites.
-`exceptions.json` contains 30 individually authorized initial-adoption boundaries:
+`exceptions.json` contains 30 individually documented technical boundaries:
 each identifies its exact operation/catch fingerprint, rationale, diagnostic
 path, observable outcome and executed failure-test selector. Records retain their
-2026-10-06 expiry and blocking review stage. No blanket inherited
+2027-01-06 expiry and blocking review stage. No blanket inherited
 handler waiver is granted. Narrowing removes 35 of the original 63 broad sites;
 the remaining 28 plus two companion cleanup sites preserve application-level translation, cleanup/propagation
 or contractual best-effort behavior. Logging alone does not approve them.
 
+The technical review in `.quality/exception-technical-review.json` records a
+decision for every initial-adoption boundary. It is an AI technical assessment,
+not independent human approval. Twenty-three diagnostic paths needed correction:
+dependency exception text, exception chains and raw citation URLs must not enter
+their logs. `telemetry.boundary_diagnostics.log_boundary_failure` preserves a
+static operation description, exception class and terminal code location without
+exception text, chained messages, source lines or local variables. The seven
+unchanged boundaries retain their existing propagation/static-diagnostic behavior.
+Changed handler fingerprints are now `active`, meaning eligible for technical
+validation under the revised policy, not independently approved. Each must
+match current source and passing bound evidence; no approval is inherited.
+The new evaluator was adopted into the protected `develop` base by PR #144
+(merged `ec18a73`), so the protected checker now applies it to subsequent
+PRs. This assessment
+does not extend expiry, reduce typing coverage, suppress checks or authorize
+production deployment.
+
 The [explicit authorization by repository administrator @placerda](https://github.com/Azure/agent-landing-zone/issues/681#issuecomment-5601804634)
 accepts these exact existing records and the policy for initial administrative
 adoption under Q5. It is not an independent GitHub review, a claim that bootstrap
-checks pass, or authorization for production deployment. Only protected active,
+checks pass, or authorization for production deployment. Only exact active,
 unexpired records with same-source passing evidence can authorize an exception.
-The initial PR still reports a missing protected policy as `bootstrap-review`;
-candidate activation cannot approve itself. A real reference PR against the
-adopted `develop` base and coordinator-owned required-check controls remain
-necessary before enforcement can be claimed.
+The initial PR (#144) reported a missing protected policy as `bootstrap-review`
+because its base predated adoption; candidate data still cannot change the
+evaluator's rules. This reference PR runs against the adopted `develop` base,
+exercising coordinator-owned required-check controls. The recorded exception
+decisions are governed by their technical evidence — exact fingerprints,
+same-source bound tests and unexpired stage validation — not by a separate
+independent human review step; this PR demonstrates base adoption with that
+technical governance already in force.
 Installed acceptance covers real auth order, upload writes/cleanup and
 standalone download/OpenAPI failures outside the checkout. Linux acceptance
 is supplied by the actual `container-tests` job for the PR head, not inferred
 from local Windows results. The quality fixtures include disposable Git
 repositories and real unittest/aggregate subprocesses for protected-policy,
 receipt and false-green mutations; they do not substitute for controlled
-required-check acceptance PRs. Subsequent policy changes still require maintainer review.
+required-check acceptance PRs. Subsequent checker/tool/workflow and other protected
+policy changes still require authorized protected-policy adoption; ordinary
+exception registry edits do not.
 The bootstrap PR cannot approve itself by editing JSON: a base without policy
 reports `bootstrap-review`. Ordinary PR checks execute the protected base's
 checker and tool config as their minimum, and separately report candidate
@@ -278,12 +306,25 @@ matrix/unit-test/container results and all five fresh bound quality reports
 plus the unittest receipt.
 
 An administrator must separately require `quality-gate` and `unit-tests` on
-development/release-target branches, require code-owner approval on the latest
-head, dismiss stale approvals and restrict bypass. `@placerda` was confirmed
+development/release-target branches and restrict bypass. Q5 no longer mandates
+independent/latest-head human approval. Existing repository review settings, if
+any, are separate controls; this change does not modify them. `@placerda` was confirmed
 as a repository administrator before adding CODEOWNERS. No settings were
 applied. Workflow YAML, approval strings and a green local command cannot prove
 required merge enforcement; bootstrap administration and controlled negative
 PR evidence remain separate acceptance activities.
+
+The decision and rollback policy are recorded in platform
+`docs/adr/ADR-0020-technical-exception-validation.md`. Adopt the new protected
+evaluator before claiming this policy is enforced remotely. Revert evaluator
+and registry together if rolling back; do not disable checks or fabricate green
+results to bridge adoption. Runtime behavior, expiry (2027-01-06), tool pins,
+workflow permissions and aggregate requirements are unchanged.
+Policy diagnostics describe differences from the protected files/settings,
+not requests for human approval. The legacy `bootstrap-review` rule name is
+retained for report compatibility; it denotes a missing protected policy, not
+a requirement to solicit reviewers or obtain an administrative statement.
+`CODEOWNERS` routes ownership but does not mandate latest-head approval.
 
 ### Implementation and failure-fixture map
 

@@ -28,6 +28,7 @@ from gpt_rag_ui.auth.embed_auth import is_copilot_session_active, resolve_access
 
 from gpt_rag_ui.util.constants import APPLICATION_INSIGHTS_CONNECTION_STRING, APP_NAME, UUID_REGEX, REFERENCE_REGEX, TERMINATE_TOKEN
 from gpt_rag_ui.telemetry.monitoring import Telemetry
+from gpt_rag_ui.telemetry.boundary_diagnostics import log_boundary_failure
 from opentelemetry.trace import SpanKind
 from chainlit.types import ThreadDict
 
@@ -298,7 +299,10 @@ async def get_auth_info() -> dict:
                     cl.user_session.set("user", app_user)
             except Exception:
                 # If refresh fails, clear the user session so the UI can re-auth.
-                logger.warning("User access token refresh failed; clearing session to force re-auth", exc_info=True)
+                log_boundary_failure(
+                    logger, "User access token refresh failed; clearing session to force re-auth",
+                    level=logging.WARNING,
+                )
                 cl.user_session.set("user", None)
                 return {
                     'authorized': False,
@@ -618,7 +622,7 @@ async def handle_message(message: cl.Message):
                     files=uploaded_files,
                 )
             except Exception:
-                logger.exception(
+                log_boundary_failure(logger,
                     "File ingestion failed: conversation=%s question_id=%s",
                     conversation_id or "new",
                     message.id,
@@ -913,7 +917,7 @@ async def handle_message(message: cl.Message):
                     "Please contact the application support team and share reference "
                     f"{message.id}."
                 )
-                logger.exception(
+                log_boundary_failure(logger,
                     "Failed while processing hosted agent continuity response: "
                     "conversation=%s question_id=%s",
                     conversation_id or "pending",
@@ -1063,7 +1067,7 @@ async def handle_message(message: cl.Message):
                     "Please contact the application support team and share reference "
                     f"{message.id}."
                 )
-                logger.exception(
+                log_boundary_failure(logger,
                     "Failed while processing hosted agent response: conversation=%s question_id=%s",
                     conversation_id or "pending",
                     message.id,
@@ -1240,7 +1244,7 @@ async def handle_message(message: cl.Message):
                     "Please contact the application support team and share reference "
                     f"{message.id}."
                 )
-                logger.exception(
+                log_boundary_failure(logger,
                     "Failed while processing orchestrator response: conversation=%s question_id=%s",
                     conversation_id or "pending",
                     message.id,

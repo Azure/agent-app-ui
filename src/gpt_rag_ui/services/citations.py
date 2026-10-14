@@ -10,6 +10,7 @@ from gpt_rag_ui.clients.blob import BlobClient
 from gpt_rag_ui.config.dependencies import get_config
 from gpt_rag_ui.services.download_security import get_download_tokens, is_download_target_allowed
 from gpt_rag_ui.util.constants import REFERENCE_REGEX
+from gpt_rag_ui.telemetry.boundary_diagnostics import log_boundary_failure
 
 logger = logging.getLogger("gpt_rag_ui.app")
 config = get_config()
@@ -155,10 +156,10 @@ def _resolve_legacy_reference_href(raw_href: str) -> Optional[str]:
         )
         return None
     except Exception:
-        logger.warning(
-            "Failed to build SAS URL for reference '%s'",
-            raw_href,
-            exc_info=True,
+        log_boundary_failure(
+            logger,
+            "Failed to build SAS URL for legacy reference; reference omitted",
+            level=logging.WARNING,
         )
         return None
 

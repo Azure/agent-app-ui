@@ -21,6 +21,7 @@ from gpt_rag_ui.auth.embed_auth import (
     reset_request_copilot_session,
 )
 from gpt_rag_ui.config.embed_config import EmbedSettings
+from gpt_rag_ui.telemetry.boundary_diagnostics import log_boundary_failure
 
 
 logger = logging.getLogger("gpt_rag_ui.embed_security")
@@ -305,7 +306,7 @@ class CopilotSocketRegistry:
                 for replaced_socket_id in replaced_socket_ids:
                     await disconnect(replaced_socket_id)
             except Exception:
-                logger.exception(
+                log_boundary_failure(logger,
                     "Failed to disconnect a superseded Copilot socket"
                 )
                 return False
@@ -503,7 +504,7 @@ class CopilotSocketRegistry:
                 await disconnect(socket_id)
                 disconnected_socket_ids.append(socket_id)
             except Exception:
-                logger.exception("Failed to disconnect a Copilot socket")
+                log_boundary_failure(logger, "Failed to disconnect a Copilot socket")
 
         async with self._lock:
             for socket_id in disconnected_socket_ids:
@@ -1008,7 +1009,7 @@ def _target_has_copilot_sockets(sio, target: str | None) -> bool:
                 return True
         return False
     except Exception:
-        logger.exception("Could not resolve Socket.IO bridge recipients")
+        log_boundary_failure(logger, "Could not resolve Socket.IO bridge recipients")
         # Default deny only when a Copilot socket could receive the event.
         return _has_copilot_sockets()
 
@@ -1157,7 +1158,7 @@ async def disconnect_copilot_session(session_id: str) -> int:
                     engineio_sid,
                 )
             except Exception:
-                logger.exception(
+                log_boundary_failure(logger,
                     "Failed to disconnect a Copilot Engine.IO transport"
                 )
         return disconnected
@@ -1168,7 +1169,7 @@ async def disconnect_copilot_session(session_id: str) -> int:
             await disconnect(socket_id)
             disconnected += 1
         except Exception:
-            logger.exception("Failed to disconnect a Copilot socket")
+            log_boundary_failure(logger, "Failed to disconnect a Copilot socket")
     return disconnected
 
 
@@ -1194,7 +1195,7 @@ async def _terminate_socket(
     try:
         await (disconnect or sio.disconnect)(socket_id)
     except Exception:
-        logger.exception("Failed to terminate an invalid Copilot socket")
+        log_boundary_failure(logger, "Failed to terminate an invalid Copilot socket")
         return False
     try:
         if (
@@ -1204,7 +1205,7 @@ async def _terminate_socket(
         ):
             await delete_session()
     except Exception:
-        logger.exception("Failed to delete an invalid Chainlit session")
+        log_boundary_failure(logger, "Failed to delete an invalid Chainlit session")
     finally:
         await registry.unbind_socket(socket_id)
     return True
@@ -1295,7 +1296,7 @@ def configure_copilot_bridge_guards(
                 _engineio_sid_for_socket(sio, socket_id),
             )
         except Exception:
-            logger.exception(
+            log_boundary_failure(logger,
                 "Failed to close a rejected Copilot transport"
             )
 
@@ -1374,7 +1375,7 @@ def configure_copilot_bridge_guards(
                         **kwargs,
                     )
                 except Exception:
-                    logger.exception(
+                    log_boundary_failure(logger,
                         "Engine.IO disconnect cleanup failed; forcing "
                         "transport cleanup"
                     )
@@ -1383,7 +1384,7 @@ def configure_copilot_bridge_guards(
                         namespaces = tuple(manager.get_namespaces())
                     except Exception:
                         namespaces = ()
-                        logger.exception(
+                        log_boundary_failure(logger,
                             "Failed to enumerate Socket.IO namespaces "
                             "during Engine.IO cleanup"
                         )
@@ -1394,7 +1395,7 @@ def configure_copilot_bridge_guards(
                                 namespace,
                             )
                         except Exception:
-                            logger.exception(
+                            log_boundary_failure(logger,
                                 "Failed to resolve a Socket.IO transport "
                                 "during Engine.IO cleanup"
                             )
@@ -1408,7 +1409,7 @@ def configure_copilot_bridge_guards(
                                 ignore_queue=True,
                             )
                         except Exception:
-                            logger.exception(
+                            log_boundary_failure(logger,
                                 "Failed to force Socket.IO manager cleanup"
                             )
                             continue
@@ -1672,7 +1673,7 @@ def configure_copilot_bridge_guards(
                 )
                 raise
             except Exception:
-                logger.exception("Chainlit Socket.IO connection failed")
+                log_boundary_failure(logger, "Chainlit Socket.IO connection failed")
                 await _terminate_socket(
                     sio,
                     registry,

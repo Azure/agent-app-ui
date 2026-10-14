@@ -1460,6 +1460,19 @@
       "typing_status": "blocking"
     },
     {
+      "id": "gpt_rag_ui.telemetry.boundary_diagnostics",
+      "path": "src/gpt_rag_ui/telemetry/boundary_diagnostics.py",
+      "import_name": "gpt_rag_ui.telemetry.boundary_diagnostics",
+      "area": "telemetry",
+      "public_exports": ["log_boundary_failure"],
+      "legacy_aliases": [],
+      "source_revision": "ec1a12912ae0771231274da9970684ffd92ac851",
+      "responsibilities": "Payload-free failure diagnostics for retained application boundaries",
+      "private_modules": [],
+      "allowed_importers": [],
+      "typing_status": "blocking"
+    },
+    {
       "id": "telemetry",
       "path": "src/gpt_rag_ui/telemetry/monitoring.py",
       "import_name": "gpt_rag_ui.telemetry.monitoring",

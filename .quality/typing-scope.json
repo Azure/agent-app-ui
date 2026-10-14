@@ -19,6 +19,7 @@
     "gpt_rag_ui.services",
     "gpt_rag_ui.services.citations",
     "gpt_rag_ui.telemetry",
+    "gpt_rag_ui.telemetry.boundary_diagnostics",
     "gpt_rag_ui.util",
     "hosted_continuity_config",
     "legacy:app",
