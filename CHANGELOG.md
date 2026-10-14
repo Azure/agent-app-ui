@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [v3.2.2] - 2026-10-14
+
 ### Fixed
 
 - **Hosted invocation compatibility.** Include the required `api-version=v1`
@@ -18,6 +20,12 @@
   source-bound passing behavior evidence, protected evaluator/tool/workflow
   integrity and fail-closed CI aggregation. Protected-checker adoption remains
   required; this does not change runtime behavior or repository review settings.
+
+### Validation
+
+- Offline release acceptance uses installed-wheel and Linux-container tests
+  plus the adopted protected quality checks; Azure deployment validation is
+  intentionally not included.
 
 ## [v3.2.1] - 2026-10-08
 
