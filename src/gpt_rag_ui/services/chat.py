@@ -20,6 +20,10 @@ from gpt_rag_ui.services.citations import (
     replace_source_reference_links,
 )
 from gpt_rag_ui.config.dependencies import get_config
+from gpt_rag_ui.config.appconfig import (
+    ATTACHMENTS_UNAVAILABLE_MESSAGE,
+    load_ingestion_uploads_enabled,
+)
 from gpt_rag_ui.clients.blob import BlobClient
 from gpt_rag_ui.services.conversation_security import get_owned_conversation
 from gpt_rag_ui.clients.ingestion_client import ingest_files_session
@@ -526,10 +530,16 @@ async def handle_message(message: cl.Message):
         rejected: list[str] = []
         total_declared_bytes = 0
         file_reply_parts: list[str] = []
+        ingestion_uploads_enabled = True
 
         if message.elements:
+            ingestion_uploads_enabled = load_ingestion_uploads_enabled(config)
             for element in message.elements:
                 if not isinstance(element, cl.File):
+                    continue
+
+                if not ingestion_uploads_enabled:
+                    rejected.append(ATTACHMENTS_UNAVAILABLE_MESSAGE)
                     continue
 
                 mime = (getattr(element, "mime", "") or "").lower()
@@ -661,7 +671,10 @@ async def handle_message(message: cl.Message):
                 return
 
         user_ask = (message.content or "").strip()
-        if CHAT_BACKEND == "hosted_agent" and not user_ask:
+        if not user_ask and (
+            CHAT_BACKEND == "hosted_agent"
+            or (rejected and not ingestion_uploads_enabled)
+        ):
             final_text = "".join(file_reply_parts).strip()
             if not final_text:
                 final_text = "Enter a question to start or continue the hosted conversation."
@@ -670,7 +683,7 @@ async def handle_message(message: cl.Message):
             response_msg.content = final_text
             await response_msg.update()
             logger.info(
-                "Skipping hosted agent (empty ask): conversation=%s question_id=%s",
+                "Skipping chat backend (empty ask): conversation=%s question_id=%s",
                 hosted_conversation_id or "new",
                 message.id,
             )

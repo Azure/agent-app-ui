@@ -8,6 +8,11 @@ from typing import Optional
 
 import httpx
 
+from gpt_rag_ui.config.appconfig import (
+    ATTACHMENTS_UNAVAILABLE_MESSAGE,
+    load_ingestion_uploads_enabled,
+)
+from gpt_rag_ui.config.dependencies import get_config
 from gpt_rag_ui.clients.orchestrator_client import (
     _format_outgoing_request_debug,
     _get_config_value,
@@ -189,6 +194,9 @@ async def _build_ingest_documents_payload(conversation_id: str, question_id: str
 
 
 async def ingest_files_session(conversation_id: str, question_id: str, auth_info: dict, files: list[dict]) -> bool:
+    if not load_ingestion_uploads_enabled(get_config()):
+        raise RuntimeError(ATTACHMENTS_UNAVAILABLE_MESSAGE)
+
     url, target_context = _build_ingestion_url()
     headers = {"Content-Type": "application/json"}
 

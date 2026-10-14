@@ -13,6 +13,16 @@ Embedding is disabled by default. Enabling it without a valid
 mode from missing Entra configuration and never downgrades an Entra failure to
 anonymous access.
 
+Entra Copilot upload controls also require the independent
+`DEPLOY_INGESTION_CONTAINER_APP` capability read through the existing App
+Configuration provider. A missing setting preserves legacy upload eligibility;
+`true` keeps the existing Entra and conversation checks. `false` disables the
+controls and server-side attachment processing, including ingestion URL/Dapr
+fallbacks, with “Attachments are unavailable in this deployment.” Malformed
+boolean values fail with an actionable configuration error. Anonymous Copilot
+uploads remain disabled regardless of this flag. Text chat, authentication and
+retrieval are unchanged; no native conversation upload path is introduced.
+
 ## Rendering and token flow
 
 Chainlit 2.12.0 Copilot mode renders a floating widget in an open Shadow DOM. It
