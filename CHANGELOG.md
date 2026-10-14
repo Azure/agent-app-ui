@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [v3.3.0] - 2026-10-14
+
 ### Added
 
 - **Optional-ingestion upload capability.** Honor
@@ -12,6 +14,13 @@
   malformed boolean values fail with a configuration error. Anonymous Copilot
   uploads remain disabled. Text chat and retrieval are unchanged; no native
   Foundry IQ conversation upload path is introduced.
+
+### Validation
+
+- Offline acceptance covers the source suite, non-editable installed-wheel
+  acceptance, ephemeral Linux-container behavior, and protected lint, typing,
+  architecture, exceptions, policy, and aggregate quality checks. No live Azure
+  reads, deployment checks, or Azure acceptance are included.
 
 ## [v3.2.2] - 2026-10-14
 
