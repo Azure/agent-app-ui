@@ -1,7 +1,7 @@
 import os
 import logging
 
-from typing import Dict, Any
+from typing import Dict, Any, Protocol
 from azure.identity import ChainedTokenCredential, ManagedIdentityCredential, AzureCliCredential
 from azure.identity.aio import ChainedTokenCredential as AsyncChainedTokenCredential, ManagedIdentityCredential as AsyncManagedIdentityCredential, AzureCliCredential as AsyncAzureCliCredential
 from azure.appconfiguration import AzureAppConfigurationClient
@@ -19,6 +19,29 @@ from gpt_rag_ui.config.errors import ConfigurationError
 BASE_LABEL = 'agent-lz'
 APP_LABEL = 'agent-app-ui'
 LEGACY_APP_LABEL = 'gpt-rag-ui'
+
+ATTACHMENTS_UNAVAILABLE_MESSAGE = "Attachments are unavailable in this deployment."
+
+
+class IngestionUploadConfig(Protocol):
+    def get(self, key: str, default: str, type: type) -> str: ...
+
+
+def load_ingestion_uploads_enabled(config: IngestionUploadConfig) -> bool:
+    """Read the independent ingestion capability without changing provider precedence.
+
+    Missing preserves legacy upload eligibility; a present malformed value is
+    an operator error, never an implicit opt-in.
+    """
+    value = config.get("DEPLOY_INGESTION_CONTAINER_APP", "true", str).strip().lower()
+    if value in {"true", "1", "yes", "y", "on"}:
+        return True
+    if value in {"false", "0", "no", "n", "off"}:
+        return False
+    raise ConfigurationError(
+        "DEPLOY_INGESTION_CONTAINER_APP must be a boolean (true or false). "
+        "Set false for deployments without the ingestion service."
+    )
 
 
 def candidate_keys(key: str) -> list[str]:

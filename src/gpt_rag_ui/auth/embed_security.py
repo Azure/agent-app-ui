@@ -21,6 +21,8 @@ from gpt_rag_ui.auth.embed_auth import (
     reset_request_copilot_session,
 )
 from gpt_rag_ui.config.embed_config import EmbedSettings
+from gpt_rag_ui.config.appconfig import load_ingestion_uploads_enabled
+from gpt_rag_ui.config.dependencies import get_config
 from gpt_rag_ui.telemetry.boundary_diagnostics import log_boundary_failure
 
 
@@ -654,6 +656,7 @@ def _inject_chainlit_cookie(
 def _copilot_project_settings_send(send, auth_mode: str):
     """Expose only the capabilities supported by this Copilot auth mode."""
 
+    ingestion_uploads_enabled = load_ingestion_uploads_enabled(get_config())
     pending_start = None
 
     async def send_response(message):
@@ -678,7 +681,7 @@ def _copilot_project_settings_send(send, auth_mode: str):
                         .get("spontaneous_file_upload", {})
                     )
                     if isinstance(upload, dict):
-                        upload["enabled"] = auth_mode == "entra"
+                        upload["enabled"] = ingestion_uploads_enabled and auth_mode == "entra"
                     body = json.dumps(
                         payload,
                         separators=(",", ":"),

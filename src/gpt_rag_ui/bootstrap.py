@@ -12,7 +12,7 @@ from azure.core.exceptions import ResourceNotFoundError
 from fastapi import FastAPI, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from gpt_rag_ui.config.appconfig import AppConfigClient
+from gpt_rag_ui.config.appconfig import AppConfigClient, load_ingestion_uploads_enabled
 from gpt_rag_ui.telemetry.boundary_diagnostics import log_boundary_failure
 from gpt_rag_ui.clients.blob import BlobClient
 from gpt_rag_ui.config.dependencies import get_config
@@ -154,21 +154,27 @@ def _format_release_value(value: str | None, missing_message: str) -> str:
     return missing_message
 
 
-def _want_chainlit_spontaneous_file_upload(auth_state: AuthState) -> bool:
-    """True whenever the effective allow_anonymous is false.
+def _want_chainlit_spontaneous_file_upload(
+    auth_state: AuthState, *, ingestion_uploads_enabled: bool = True,
+) -> bool:
+    """Enable uploads only with ingestion capability and authenticated callers.
 
     Per-conversation uploads require an authenticated caller (each file is bound to the
-    user's conversation), so we enable the Chainlit paperclip whenever auth is in force,
+    user's conversation), so the Chainlit paperclip also requires auth in force,
     regardless of whether ALLOW_ANONYMOUS came from env, App Config, or the default.
     """
 
-    return not auth_state.allow_anonymous
+    return ingestion_uploads_enabled and not auth_state.allow_anonymous
 
 
-def _sync_chainlit_spontaneous_file_upload(auth_state: AuthState) -> None:
+def _sync_chainlit_spontaneous_file_upload(
+    auth_state: AuthState, *, ingestion_uploads_enabled: bool = True,
+) -> None:
     """Write [features.spontaneous_file_upload].enabled before `import chainlit` (Chainlit reads TOML on import)."""
 
-    want_enabled = _want_chainlit_spontaneous_file_upload(auth_state)
+    want_enabled = _want_chainlit_spontaneous_file_upload(
+        auth_state, ingestion_uploads_enabled=ingestion_uploads_enabled,
+    )
     path = get_asset_root() / ".chainlit" / "config.toml"
     if not path.is_file():
         logger.warning("Chainlit config not found at %s; skipping spontaneous file upload sync", path)
@@ -728,10 +734,13 @@ def _create_chainlit_app(
     """
 
     embed_settings = embed_settings or EmbedSettings()
+    ingestion_uploads_enabled = load_ingestion_uploads_enabled(config)
     _configure_embed_environment(embed_settings)
     _configure_auth_environment(config, auth_state)
     effective_auth = auth_state or _evaluate_auth_state(config, embed_settings)
-    _sync_chainlit_spontaneous_file_upload(effective_auth)
+    _sync_chainlit_spontaneous_file_upload(
+        effective_auth, ingestion_uploads_enabled=ingestion_uploads_enabled,
+    )
 
     download_tokens = None
     if embed_settings.enabled:
@@ -757,6 +766,14 @@ def _create_chainlit_app(
     # origins can be applied in memory without modifying the deployment files.
     from chainlit.config import config as chainlit_config
 
+    # Also enforce the capability if TOML could not be written or Chainlit
+    # was imported earlier in this process.
+    if chainlit_config.features.spontaneous_file_upload is not None:
+        chainlit_config.features.spontaneous_file_upload.enabled = (
+            _want_chainlit_spontaneous_file_upload(
+                effective_auth, ingestion_uploads_enabled=ingestion_uploads_enabled,
+            )
+        )
     configure_chainlit_allowed_origins(embed_settings, chainlit_config)
     import chainlit.server as chainlit_server
 
