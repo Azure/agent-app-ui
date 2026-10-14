@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Optional-ingestion upload capability.** Honor
+  `DEPLOY_INGESTION_CONTAINER_APP` independently of the chat backend: `false`
+  hides standalone and Entra Copilot upload controls and rejects attachments
+  before ingestion URL or Dapr resolution. Missing preserves legacy upload
+  eligibility; `true` retains existing authentication and conversation checks;
+  malformed boolean values fail with a configuration error. Anonymous Copilot
+  uploads remain disabled. Text chat and retrieval are unchanged; no native
+  Foundry IQ conversation upload path is introduced.
+
 ## [v3.2.2] - 2026-10-14
 
 ### Fixed
