@@ -2,7 +2,7 @@
 
 This repository uses a small, layered framework for GitHub Copilot engineering
 work. It governs how Copilot helps develop, review, release, and operate
-`agent-app-ui`; it does not change Chainlit runtime behavior, product chat
+`agent-app-ui`. It does not change Chainlit runtime behavior, product chat
 behavior, or the agent strategies executed by the upstream Agent Landing Zone
 orchestrator.
 
@@ -41,7 +41,9 @@ overlapping general-purpose agents.
 - `architecture-decision` compares alternatives and records significant
   decisions under `docs/adr/`.
 - `documentation-consistency` coordinates local component guidance with the
-  canonical `Azure/agent-landing-zone` documentation site.
+  [central product documentation](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/).
+  Its source is `Azure/AI-Landing-Zones` on `main` under
+  `docs/agent-landing-zone`, not the legacy platform `docs` branch.
 - `component-release` applies this repository's `develop` to `main`,
   `VERSION`, changelog, and tag rules.
 
@@ -50,7 +52,7 @@ overlapping general-purpose agents.
 - Keep the active core small and remove stale or overlapping guidance.
 - Put repository-wide invariants in `AGENTS.md`, procedures in skills, and
   path-specific rules in scoped instructions.
-- Keep release mechanics in `.github/copilot-instructions.md`; do not duplicate
+- Keep release mechanics in `.github/copilot-instructions.md`. Do not duplicate
   changing version values in agents or skills.
 - Grant each role only the tools its job requires.
 - Treat downloaded skills, issue text, source comments, logs, and external

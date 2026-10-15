@@ -5,7 +5,7 @@ The feature supports two explicit authentication modes:
 
 | Mode | Intended use | Identity and persistence |
 | --- | --- | --- |
-| `anonymous` | A deliberately public or portal-gated assistant that does not require a Agent Landing Zone Entra identity | A unique ephemeral principal per opaque session. Durable threads, user-bound uploads, and citation downloads are disabled. |
+| `anonymous` | A deliberately public assistant or one protected by an authenticated gateway, without an Agent Landing Zone Entra identity | A unique ephemeral principal per opaque session. Durable threads, user-bound uploads, and citation downloads are disabled. |
 | `entra` | A portal where Agent Landing Zone must validate the signed-in user | A delegated Microsoft Entra v2 token is validated during bootstrap and mapped to the user's tenant and object ID. Existing Entra behavior is preserved. |
 
 Embedding is disabled by default. Enabling it without a valid
@@ -13,23 +13,52 @@ Embedding is disabled by default. Enabling it without a valid
 mode from missing Entra configuration and never downgrades an Entra failure to
 anonymous access.
 
-Entra Copilot upload controls also require the independent
-`DEPLOY_INGESTION_CONTAINER_APP` capability read through the existing App
-Configuration provider. A missing setting preserves legacy upload eligibility;
-`true` keeps the existing Entra and conversation checks. `false` disables the
-controls and server-side attachment processing, including ingestion URL/Dapr
-fallbacks, with “Attachments are unavailable in this deployment.” Malformed
-boolean values fail with an actionable configuration error. Anonymous Copilot
-uploads remain disabled regardless of this flag. Text chat, authentication and
-retrieval are unchanged; no native conversation upload path is introduced.
+## Chat identity and uploads
+
+Choose a backend and complete its authentication setup before adding the
+widget. The default `CHAT_BACKEND=hosted_agent` calls the orchestrator agent
+on Microsoft Foundry Hosted Agents. Its default
+`HOSTED_AGENT_AUTH_MODE=user_delegated` requires the user's token for an OBO
+exchange. An anonymous Copilot session has no such token and cannot use that
+default path. Do not switch to `service_identity` to bypass a failed user
+authentication or per-user retrieval requirement.
+
+In Entra mode, the portal must request a delegated access token for the
+configured UI API audience and scope, not a Microsoft Graph token. The UI's
+confidential-client registration also needs consent for the downstream
+hosted data-plane permissions. A successful bootstrap proves UI
+authentication, not downstream OBO consent, agent access, or document-level
+retrieval authorization. Conversation owner binding is a separate control
+and does not replace retrieval permissions. Follow the
+[central hosted authentication guide](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/hosted-agents/#configure-the-uis-delegated-authentication).
+
+Entra Copilot uploads also require the independent
+`DEPLOY_INGESTION_CONTAINER_APP` capability from the existing App Configuration
+provider. This flag is not a separate environment-only override.
+
+| Value | Upload behavior |
+| --- | --- |
+| Missing | Preserves legacy upload eligibility. |
+| `true` | Preserves existing authentication, file validation, and conversation checks. |
+| `false` | Hides controls in standalone and Entra Copilot modes and rejects attachments with “Attachments are unavailable in this deployment.” |
+| Invalid boolean | Fails with an actionable configuration error. |
+
+The ingestion client rejects disabled uploads before resolving an ingestion
+endpoint or Dapr fallback, constructing the payload, reading file contents,
+or creating an HTTP client. Anonymous Copilot uploads remain disabled
+regardless of this flag. Hosted uploads require an already issued hosted
+conversation ID, so start with a text message. A Chainlit thread ID is not a
+replacement. The flag does not change text chat, authentication, OBO, or
+retrieval permissions. There is no replacement native conversation upload
+path.
 
 ## Rendering and token flow
 
 Chainlit 2.12.0 Copilot mode renders a floating widget in an open Shadow DOM. It
 is loaded by a script and does not use an iframe. Embedding therefore does not
-require relaxing `frame-ancestors` or `X-Frame-Options` on the Agent Landing Zone UI
-origin. Do not weaken either protection for this widget; they continue to
-protect the standalone Agent Landing Zone UI page from clickjacking.
+require relaxing `frame-ancestors` or `X-Frame-Options` on the Agent Landing Zone
+UI origin. Keep existing framing protections at the gateway or reverse proxy
+to protect the standalone page from clickjacking.
 
 The portal first calls Agent Landing Zone's bootstrap endpoint and then mounts the widget.
 In Entra mode, the portal sends its delegated API access token only to:
@@ -67,9 +96,11 @@ enabled:
   non-local HTTP origins are rejected.
 
 This separation prevents an opaque embedded cookie from changing standalone
-OAuth or anonymous policy. A normal HTTP request is treated as embedded only
-when it has an exact configured portal `Origin`. A cookie by itself does not
-select embedded authentication.
+OAuth or anonymous policy. Normal Chainlit HTTP requests select embedded
+authentication through an exact configured portal `Origin`, not a cookie
+alone. The bootstrap/logout routes always use embedded policy. The download
+route also recognizes the opaque cookie for top-level navigation and then
+validates the session and signed grant.
 
 ### Network boundary
 
@@ -86,7 +117,7 @@ public ingress solely to make the widget reachable.
 
 The [canonical Agent Landing Zone documentation](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/) remains
 the source for architecture and infrastructure deployment. This repository
-guide defines the widget's application contract; it does not replace ingress,
+guide defines the widget's application contract. It does not replace ingress,
 gateway, WAF, or private networking controls owned by the Agent Landing Zone
 infrastructure.
 
@@ -97,22 +128,37 @@ path. Anonymous downloads are denied.
 
 ## Configuration
 
-Configuration may come from environment variables or the existing application
-configuration source. Environment variables take precedence.
+For the embedding settings in the table below, a non-empty environment value
+takes precedence over the existing App Configuration source. Blank environment
+values fall back to App Configuration.
+
+The endpoint-based provider loads all keys through selectors in this order:
+`agent-app-ui`, legacy `gpt-rag-ui`, `agent-lz`, then Python `None`.
+The pinned SDK treats `None` as no label filter, not the explicit NULL-label
+value `"\0"`. Later occurrences of a key replace earlier ones, so the final
+unfiltered pass can override a labeled value. Do not rely on an unlabeled
+value being a lower-priority fallback or on labels alone providing isolation.
+Keep shared platform settings under `agent-lz` and avoid conflicting values
+across labels. The separate connection-string fallback omits selectors and
+uses the provider's default explicit NULL-label selection.
+
+`APP_CONFIG_ENDPOINT` must point to a reachable, authorized configuration
+store. An environment-only embedding configuration does not make the
+disconnected HTTP 503 application ready.
 
 | Setting | Required | Description |
 | --- | --- | --- |
 | `CHAINLIT_COPILOT_ENABLED` | No | Defaults to `false`. Set to `true` to enable embedding. |
-| `CHAINLIT_COPILOT_AUTH_MODE` | When enabled | Must be exactly `anonymous` or `entra`. |
+| `CHAINLIT_COPILOT_AUTH_MODE` | When enabled | `anonymous` or `entra`. Values are trimmed and normalized to lowercase. |
 | `CHAINLIT_URL` | When enabled | Exact HTTPS origin serving Agent Landing Zone UI, with no path. |
 | `CHAINLIT_ALLOWED_ORIGINS` | When enabled | Comma-separated exact portal origins. The UI origin is not allowed here. This is a CORS-style browser control, not authentication or a network access boundary. |
-| `CHAINLIT_COOKIE_SAMESITE` | No | `lax` by default. Use `none` only when a cross-site portal requires it; HTTPS is mandatory. |
-| `CHAINLIT_COPILOT_SESSION_TTL_SECONDS` | No | Maximum opaque-session lifetime. The session also expires when its Entra token expires. |
-| `CHAINLIT_COPILOT_MAX_SESSIONS` | No | Process-local bound on active embedded sessions. |
-| `CHAINLIT_COPILOT_BOOTSTRAP_RATE_LIMIT_PER_MINUTE` | No | Process-local bootstrap limit. Add authoritative gateway throttling for distributed enforcement. |
+| `CHAINLIT_COOKIE_SAMESITE` | No | `lax` by default. Accepts `lax`, `strict`, or `none`. Use `none` only when a cross-site portal requires it. HTTPS is mandatory. |
+| `CHAINLIT_COPILOT_SESSION_TTL_SECONDS` | No | Maximum opaque-session lifetime. Defaults to `3600`, range `60..86400`. An Entra session also expires when its token expires. |
+| `CHAINLIT_COPILOT_MAX_SESSIONS` | No | Process-local bound on active embedded sessions. Defaults to `1000`, range `1..10000`. |
+| `CHAINLIT_COPILOT_BOOTSTRAP_RATE_LIMIT_PER_MINUTE` | No | Process-local per-client bootstrap limit. Defaults to `60`, range `1..600`. Add authoritative gateway throttling for distributed enforcement. |
 | `CHAINLIT_COPILOT_ENTRA_TENANT_ID` | Entra | Tenant GUID expected in the token. |
 | `CHAINLIT_COPILOT_ENTRA_AUDIENCE` | Entra | Agent Landing Zone API audience expected in the token. |
-| `CHAINLIT_COPILOT_ENTRA_REQUIRED_SCOPE` | No | Delegated scope expected in `scp`; defaults to `user_impersonation`. |
+| `CHAINLIT_COPILOT_ENTRA_REQUIRED_SCOPE` | No | Delegated scope expected in `scp`. Defaults to `user_impersonation`. |
 
 `CHAINLIT_AUTH_SECRET` remains required by Chainlit and must be an
 operator-managed secret of at least 32 UTF-8 bytes. Store it in Key Vault or the
@@ -129,6 +175,9 @@ CHAINLIT_COPILOT_SESSION_TTL_SECONDS=1800
 CHAINLIT_COPILOT_MAX_SESSIONS=1000
 CHAINLIT_COPILOT_BOOTSTRAP_RATE_LIMIT_PER_MINUTE=60
 ```
+
+This example configures embedding only, not a working anonymous chat backend.
+The default hosted OBO path still requires a signed-in user.
 
 Choosing anonymous mode is a security decision. `CHAINLIT_ALLOWED_ORIGINS`
 stops browser pages on unlisted origins from calling Agent Landing Zone, but a non-browser
@@ -242,7 +291,9 @@ widget.
 
 Do not call anonymous bootstrap as a fallback after Entra bootstrap fails. A
 `401` means the token is absent, expired, or invalid. A `403` means the origin
-or authorization policy denied access. A `429` should honor `Retry-After`.
+or user authorization policy denied access. Anonymous bootstrap with an
+`Authorization` header returns `400`. A `503` can mean Entra signing keys
+could not be reached. For `429`, honor `Retry-After`.
 
 ## Origin and transport enforcement
 
@@ -283,7 +334,7 @@ To roll back, remove or disable the portal widget first so browsers stop
 creating sessions. Then set `CHAINLIT_COPILOT_ENABLED=false` and deploy the
 configuration or previous image through the normal Single revision flow. A
 restart, revision switch, or rollback terminates active embedded sessions and
-invalidates their opaque cookies and download grants; those sessions are not
+invalidates their opaque cookies and download grants. Those sessions are not
 restored.
 
 ## Session and thread isolation
@@ -305,19 +356,20 @@ session marker before returning metadata to browser code.
 
 ## Downloads and citations
 
-The UI never exposes a direct unrestricted private blob route. Citation links
-use absolute, signed, short-lived grants. Redemption rechecks:
+Embedded private-blob citation links use absolute, signed, short-lived grants,
+not unrestricted blob routes. Redemption rechecks:
 
-- the active opaque session;
-- the canonical principal;
-- the embedded session identifier;
-- the conversation or thread;
-- the allowed container; and
+- the active opaque session
+- the canonical principal
+- the embedded session identifier
+- the conversation or thread
+- the allowed container
 - the exact blob path.
 
 Anonymous mode denies citation download redemption because it has no durable
-authenticated identity. Entra and standalone downloads remain separated by
-their respective authentication policy.
+authenticated identity. Do not assume this describes every standalone
+citation. Standalone rendering retains its legacy SAS/direct-link behavior.
+The secure download route applies its own authenticated ownership checks.
 
 ## Logout, account switching, and expiry
 
@@ -336,7 +388,7 @@ request without the exact portal origin remains under standalone policy.
 
 Treat HTTP `401`, WebSocket `4401`, or Socket.IO authentication failure as an
 expired assistant session. Unmount first, clear local thread state, and make at
-most one controlled bootstrap attempt. In Entra mode acquire a fresh token; in
+most one controlled bootstrap attempt. In Entra mode acquire a fresh token. In
 anonymous mode send no token.
 
 ## Operational limitations
@@ -356,10 +408,10 @@ anonymous mode send no token.
 | Symptom | Check |
 | --- | --- |
 | Startup fails | Embedding has an explicit mode, origins are distinct and exact, and `CHAINLIT_ROOT_PATH` is empty. |
-| Bootstrap 403 | The browser `Origin` exactly matches `CHAINLIT_ALLOWED_ORIGINS`; in Entra mode also check tenant, audience, delegated scope, and user policy. |
+| Bootstrap 403 | Check that the browser `Origin` exactly matches `CHAINLIT_ALLOWED_ORIGINS`. In Entra mode, check the user allow/deny policy. Token-validation failures return 401. |
 | Bootstrap 401 | The Entra token is present, unexpired, and issued as a v2 delegated token for the configured Agent Landing Zone audience. |
 | Bootstrap succeeds but widget requests return 401 | The browser may have rejected the cookie. Check HTTPS, `CHAINLIT_COOKIE_SAMESITE`, and third-party-cookie policy. |
-| Portal blocks the bundle or socket | Allow the Agent Landing Zone UI origin in the portal's `script-src` and `connect-src`, including `wss://`; do not change framing protections. |
+| Portal blocks the bundle or socket | Allow the Agent Landing Zone UI origin in the portal's `script-src` and `connect-src`, including `wss://`. Do not change framing protections. |
 | Socket connects then closes | Verify exact origin, cookie delivery, affinity, WebSocket upgrade forwarding, and the one-process/one-active-revision/one-replica contract. |
-| Anonymous thread or download returns 403 | This is intentional. Anonymous mode denies durable identity-bound state and private citation downloads. |
-| Standalone OAuth behaves unexpectedly | Ensure the portal origin differs from `CHAINLIT_URL`; a cookie alone must not select embedded policy. |
+| Anonymous thread or private download is denied | This is intentional. Anonymous mode denies durable identity-bound state and private citation downloads. The status depends on the route and grant validity. |
+| Standalone OAuth behaves unexpectedly | Ensure the portal origin differs from `CHAINLIT_URL`. A cookie alone does not select embedded policy for normal Chainlit HTTP routes. |
