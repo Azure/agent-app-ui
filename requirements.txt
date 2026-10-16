@@ -10,7 +10,7 @@ fastapi>=0.137.1
 httpx==0.28.1
 itsdangerous==2.2.0
 msal==1.35.1
-opentelemetry-instrumentation-httpx==0.64b0
+opentelemetry-instrumentation-httpx==0.65b0
 pydantic>=2.0,<3.0
 python-dotenv==1.2.2
 PyJWT[crypto]>=2.8.0,<3.0.0
