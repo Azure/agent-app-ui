@@ -10,13 +10,16 @@ before implementation. Copy the template from
 next `ADR-NNN` number, compare alternatives including no change, and define
 measurable compliance and a review trigger.
 
-These records cover this UI component. Platform or orchestrator decisions
-belong in the appropriate `Azure/agent-landing-zone` repository and should be linked
-rather than duplicated.
+These records cover this UI component. Platform decisions belong in
+`Azure/agent-landing-zone`. Orchestrator-only decisions belong in
+`Azure/agent-app-orchestrator`. Link to those decisions rather than
+duplicating them here.
 
 The exception-registry technical validation decision is platform ADR-0020,
 `docs/adr/ADR-0020-technical-exception-validation.md` in
 `Azure/agent-landing-zone`. It replaces mandatory independent approval and
 registry-only policy blocking, while retaining protected evaluator integrity
-and exact-source passing evidence. See `../python-development.md` for the
-implementation and pending protected-policy adoption.
+and exact-source passing evidence. See
+[Python development](../python-development.md#protected-quality-checks)
+for the current implementation. Repository settings and live required-check
+enforcement need separate evidence.
