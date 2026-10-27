@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [v3.3.1] - 2026-10-27
+
 ### Fixed
 
 - **Application resource-group targeting.** Resolve Container Apps, registry
