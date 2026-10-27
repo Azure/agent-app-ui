@@ -43,14 +43,15 @@ class InstalledPackageTests(unittest.TestCase):
         cls.cwd.mkdir()
         cls.inventory = json.loads((ROOT / ".quality/migration.json").read_text(encoding="utf-8"))
         cls.behavioral_tests = cls.root / "behavioral-tests"
-        # The other three modules inspect/build the source tree and already run
-        # separately. Reuse the behavioral suite without copying application code.
+        # Source/build and deployment-tooling contracts run in the checkout.
+        # Reuse runtime behavior here without copying application source.
         shutil.copytree(
             ROOT / "tests",
             cls.behavioral_tests,
             ignore=shutil.ignore_patterns(
                 "__pycache__", "test_installed_package.py",
                 "test_module_compatibility.py", "test_quality_policy.py",
+                "deployment",
             ),
         )
 
