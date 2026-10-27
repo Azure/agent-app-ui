@@ -51,7 +51,7 @@ class InstalledPackageTests(unittest.TestCase):
             ignore=shutil.ignore_patterns(
                 "__pycache__", "test_installed_package.py",
                 "test_module_compatibility.py", "test_quality_policy.py",
-                "test_deployment_resource_group.py",
+                "deployment",
             ),
         )
 

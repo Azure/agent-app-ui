@@ -8,7 +8,7 @@ import subprocess
 import unittest
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 CASES = (
     ("rg-app", 0, "rg-app"),
     ("", 0, "rg-legacy"),
@@ -35,7 +35,7 @@ class DeploymentResourceGroupTests(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which("pwsh"), "PowerShell is unavailable")
     def test_powershell(self):
-        source = (ROOT / "scripts/deploy.ps1").read_text(encoding="utf-8-sig")
+        source = (ROOT / "scripts" / "deploy.ps1").read_text(encoding="utf-8-sig")
         resolver = re.search(
             r"^function Get-ApplicationResourceGroup \{.*?^\}", source, re.M | re.S,
         ).group()
@@ -56,7 +56,7 @@ function Get-RequiredConfigValue { param($Key); 'rg-legacy' }
 
     @unittest.skipUnless(shutil.which("bash"), "Bash is unavailable")
     def test_shell(self):
-        source = (ROOT / "scripts/deploy.sh").read_text(encoding="utf-8-sig")
+        source = (ROOT / "scripts" / "deploy.sh").read_text(encoding="utf-8-sig")
         resolver = re.search(
             r"^get_application_resource_group\(\) \{.*?^\}", source, re.M | re.S,
         ).group()
