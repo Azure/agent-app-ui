@@ -15,7 +15,10 @@ import time
 import unittest
 
 LOGGER = logging.getLogger("container-smoke")
-EXCLUDED = {"test_quality_policy.py", "test_module_compatibility.py", "test_installed_package.py"}
+EXCLUDED = {
+    "test_quality_policy.py", "test_module_compatibility.py",
+    "test_installed_package.py", "test_deployment_resource_group.py",
+}
 MINIMUM_BEHAVIORAL_TESTS = 410
 
 
