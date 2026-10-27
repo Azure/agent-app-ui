@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [v3.3.1] - 2026-10-27
+
+### Fixed
+
+- **Application resource-group targeting.** Resolve Container Apps, registry
+  operations and deployment identities from `AZURE_APP_RESOURCE_GROUP` under
+  `agent-lz`. Confirmed missing or empty values retain the legacy
+  `AZURE_RESOURCE_GROUP` fallback; configuration access failures stop deployment.
+
 ## [v3.3.0] - 2026-10-14
 
 ### Added
