@@ -1,14 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [v3.4.0] - 2026-10-28
 
-### Fixed
-
-- **Recovery authentication module boundaries.** Share bounded HTTP claims
-  parsing through its authentication owner, expose typed OAuth configuration
-  and recovery-binding validation interfaces, and resolve the recovery origin
-  through the configuration provider without an OAuth dependency cycle.
-  Preserve legacy exports, current authorization checks, and recovery protocol.
+### Added
 
 - **Interactive protected-source sign-in recovery.** Preserve authenticated
   downstream Conditional Access challenges through hosted errors and native
@@ -28,6 +22,20 @@
   authenticated UI grants, current-user Storage OBO for shared documents, and
   a fresh exact-document native Search gate before workload upload reads;
   native citations never mint Blob SAS or reach legacy anonymous readers.
+
+### Fixed
+
+- **Recovery authentication module boundaries.** Share bounded HTTP claims
+  parsing through its authentication owner, expose typed OAuth configuration
+  and recovery-binding validation interfaces, and resolve the recovery origin
+  through the configuration provider without an OAuth dependency cycle.
+  Preserve legacy exports, current authorization checks, and recovery protocol.
+
+### Validation
+
+- Full unittest, non-editable installed-wheel and offline Linux-container
+  acceptance, together with protected lint, typing, architecture, exception,
+  policy and aggregate quality checks.
 
 ## [v3.3.1] - 2026-10-27
 
