@@ -174,6 +174,16 @@ class RecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(401, (await self.complete(params)).status_code)
         self.assertIsNone(recovery.recovery_context.get())
 
+    async def test_quoted_flow_cookie_is_decoded_but_duplicates_remain_rejected(self):
+        ticket = recovery.seal_context({"marker": "synthetic"}, purpose="oauth-flow")
+        header = f'alz_auth_flow_0="1.{ticket}"'.encode("ascii")
+        request = routes.Request({"type": "http", "headers": [(b"cookie", header)]})
+        self.assertEqual("synthetic", routes._read_flow(request)["marker"])
+        for headers in ([(b"cookie", header + b"; " + header)],
+                        [(b"cookie", header), (b"cookie", header)]):
+            with self.assertRaises(recovery.RecoveryError):
+                routes._read_flow(routes.Request({"type": "http", "headers": headers}))
+
     async def test_ordinary_login_uses_same_callback_without_graph_and_creates_binding(self):
         self.client.cookies.clear()
         response = await self.client.get("/auth/oauth/azure-ad", params={"resource": "https://evil.example"})

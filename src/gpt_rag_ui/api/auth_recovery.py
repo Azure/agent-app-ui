@@ -39,9 +39,11 @@ def _cookie(request: Request, name: str) -> str:
         for header in request.headers.getlist("cookie") for item in header.split(";")
         if item.partition("=")[0].strip() == name
     ]
-    if len(values) != 1:
+    if len(values) != 1 or name not in request.cookies:
         raise RecoveryError()
-    return values[0]
+    # Keep raw-header duplicate detection, but honor standard quoted-cookie
+    # decoding (including padded encrypted flow values).
+    return request.cookies[name]
 
 
 def _clear_flow(response: Response) -> Response:
