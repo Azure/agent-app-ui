@@ -133,6 +133,30 @@ class NativeDownloadTests(unittest.IsolatedAsyncioTestCase):
         headers = {"Cookie": f"auth={user}"} if user else {}
         return await self.http.get(url, headers=headers)
 
+    async def test_legacy_registration_without_native_client_keeps_authentication_required(self):
+        manager = security.DownloadTokenManager(
+            secret="synthetic-legacy-test-secret", public_url="https://ui.example.com",
+        )
+        app = FastAPI()
+        register_secure_download_route(
+            app, manager=manager, download_blob=self.legacy,
+            allowed_containers={"documents", "uploads"}, conversation_container="uploads",
+            shared_containers={"documents"}, sessions=Mock(get=AsyncMock(return_value=None)),
+        )
+        grant = manager.issue(
+            principal_id=f"{TENANT}:{USER_A}", session_id="legacy-session",
+            conversation_id="12345678-1234-4abc-8def-1234567890ab",
+            container="documents", blob_name="private.pdf",
+        )
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="https://ui.example.com",
+        ) as client:
+            response = await client.get(grant)
+        self.assertEqual(401, response.status_code)
+        self.legacy.assert_not_called()
+        self.obo.assert_not_awaited()
+        self.service.assert_not_awaited()
+
     async def test_shared_blob_uses_current_user_storage_obo_without_workload_or_sas(self):
         with patch.object(citations, "generate_blob_sas_url") as sas:
             response = await self.fetch(self.grant())
