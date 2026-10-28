@@ -70,6 +70,7 @@ class Telemetry:
             "authorization", "cookie", "set-cookie", "x-client-.*",
             "x-ms-query-source-authorization",
             "x-ms-query-work-iq-source-authorization", "www-authenticate",
+            "location",
         )
         os.environ[sanitize_key] = ",".join(
             dict.fromkeys([item.strip() for item in existing.split(",") if item.strip()] + list(required))

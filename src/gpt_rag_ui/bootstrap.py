@@ -954,6 +954,9 @@ def _create_chainlit_app(
                 await close_hosted_agent_client()
 
     host_app = FastAPI(title="Agent Landing Zone UI host", lifespan=_host_lifespan)
+    if effective_auth.oauth_configured and chainlit_handlers.CHAT_BACKEND == "hosted_agent":
+        from gpt_rag_ui.api.auth_recovery import register_auth_recovery_routes
+        register_auth_recovery_routes(host_app)
     if embed_settings.enabled:
         from gpt_rag_ui.auth.embed_security import (
             configure_copilot_bridge_guards,
@@ -1092,7 +1095,9 @@ def _create_chainlit_app(
 
     logger.info("Mounted Chainlit app at / on host app")
 
-    FastAPIInstrumentor.instrument_app(host_app)
+    FastAPIInstrumentor.instrument_app(
+        host_app, excluded_urls=r".*/auth/oauth/azure-ad.*,.*?/api/auth/recovery.*,.*?/copilot/auth/recovery.*",
+    )
     HTTPXClientInstrumentor().instrument()
     return host_app
 

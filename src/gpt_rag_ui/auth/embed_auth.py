@@ -186,6 +186,7 @@ class CopilotSessionStore:
         display_name: str,
         principal_name: str,
         auth_mode: Literal["anonymous", "entra"] = "entra",
+        require_current_session: bool = False,
     ) -> CopilotSession:
         if auth_mode == "entra" and not access_token:
             raise ValueError("An Entra Copilot session requires an access token.")
@@ -209,6 +210,10 @@ class CopilotSessionStore:
         )
         invalidated: list[str] = []
         async with self._lock:
+            if require_current_session:
+                previous = self._sessions.get(previous_session_id or "")
+                if not previous or previous.principal_id != principal_id or previous.expires_at <= now:
+                    raise ValueError("The recovery session is no longer current.")
             invalidated.extend(self._prune_locked(now))
             family_id = _session_family_id(previous_session_id)
             if previous_session_id:

@@ -4,6 +4,14 @@
 
 ### Fixed
 
+- **Interactive protected-source sign-in recovery.** Preserve authenticated
+  downstream Conditional Access challenges through hosted errors and native
+  downloads. Offer explicit principal/session-bound encrypted recovery,
+  request-local Entra authorize/callback handling, and a bundled portal/MSAL
+  recovery handshake without replaying failed or partially emitted turns.
+  Keep claims out of chat persistence and diagnostics; ordinary denial remains
+  denial. Existing OAuth sessions require a fresh login to obtain a binding.
+
 - **Native protected retrieval delegation.** Preserve user-delegated Foundry
   invocation while forwarding a separately acquired Search user token. Require
   the matching UI-app assertion for configured Work IQ, use refreshed API

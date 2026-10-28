@@ -7,6 +7,37 @@
   ],
   "modules": [
     {
+      "id": "gpt_rag_ui.api.auth_recovery",
+      "path": "src/gpt_rag_ui/api/auth_recovery.py",
+      "import_name": "gpt_rag_ui.api.auth_recovery",
+      "area": "api",
+      "public_exports": ["register_auth_recovery_routes"],
+      "legacy_aliases": [],
+      "source_revision": "d4bc4e66912a1d4272057c9969903eebc9015955",
+      "responsibilities": "Request-local Entra interactive recovery routes",
+      "private_modules": [],
+      "allowed_importers": [],
+      "typing_status": "blocking"
+    },
+    {
+      "id": "gpt_rag_ui.auth.recovery",
+      "path": "src/gpt_rag_ui/auth/recovery.py",
+      "import_name": "gpt_rag_ui.auth.recovery",
+      "area": "auth",
+      "public_exports": [
+        "RecoveryError", "RecoveryLogFilter", "configured_public_url",
+        "install_recovery_log_protection", "issue_recovery", "new_recovery_binding",
+        "offer_auth_recovery", "open_context", "recovery_context",
+        "register_recovery_action", "seal_context", "verify_recovery"
+      ],
+      "legacy_aliases": [],
+      "source_revision": "d4bc4e66912a1d4272057c9969903eebc9015955",
+      "responsibilities": "Encrypted short-lived principal/session-bound recovery context",
+      "private_modules": [],
+      "allowed_importers": [],
+      "typing_status": "blocking"
+    },
+    {
       "id": "legacy:app",
       "path": "app.py",
       "import_name": "app",

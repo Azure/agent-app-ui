@@ -1,5 +1,86 @@
 # Embed Agent Landing Zone with Chainlit Copilot
 
+## Protected-source sign-in recovery
+
+Embedded Entra recovery never navigates into standalone OAuth or downgrades to
+anonymous. The assistant's Continue sign-in control emits the installed
+Chainlit 2.12 `chainlit-call-fn` event with name `protectedAuthRecovery` and an
+encrypted short-lived ticket only. The bundled
+`/public/protected-auth-recovery.js` helper fetches the challenge into memory,
+shows a real portal sign-in button (avoiding async popup blockers), and passes
+the challenge to MSAL `acquireTokenPopup`. Cancelled/blocked popups and account
+mismatch show a static actionable failure, not successful fallback.
+
+Load the helper after your existing authenticated bootstrap and Copilot
+integration, using credentials and an exact portal Origin, then install:
+
+```javascript
+const helper = document.createElement("script");
+helper.src = `${chainlitServer}/public/protected-auth-recovery.js`;
+helper.crossOrigin = "use-credentials";
+await new Promise((resolve, reject) => {
+  helper.onload = resolve;
+  helper.onerror = reject;
+  document.head.appendChild(helper);
+});
+// Use your existing portal application/redirect registration. For this
+// interaction initialize MSAL with memory-only normal AND temporary caches:
+// cache: { cacheLocation: "memoryStorage",
+//          temporaryCacheLocation: "memoryStorage",
+//          storeAuthStateInCookie: false }
+// Leave system.loggerOptions.piiLoggingEnabled false.
+await msalInstance.initialize();
+msalInstance.setActiveAccount(signedInAccount);
+const stopRecovery = window.installProtectedAuthRecovery({
+  msalInstance,
+  account: signedInAccount,
+  tenantId: configuredTenantId,
+  scopes: configuredUiApiScopes,
+  chainlitServer,
+  statusElement: document.getElementById("agent-lz-status"),
+  widgetConfig: { theme: "light" },
+});
+// Before portal logout or switching accounts:
+// stopRecovery(); unmountChainlitWidget(); clearChainlitCopilotThreadId();
+// Then use the existing /copilot/auth/logout/bootstrap lifecycle.
+```
+
+Load the helper from `${chainlitServer}/public/protected-auth-recovery.js`.
+`configuredUiApiScopes` are the same UI API scopes used for normal bootstrap;
+the tenant/scopes never come from Search or the widget. Persistent MSAL caches,
+auth-state cookies, PII logging and a widget `accessToken` are rejected by the
+helper. The selected account must remain active before and after the popup.
+Never log the callback result, challenge, or token.
+
+Authenticated protocol:
+
+1. `POST /copilot/auth/recovery`, JSON
+   `{ticket, operation: "challenge"}`, existing session cookie and exact allowed
+   portal `Origin`; returns bounded claims JSON with `Cache-Control: no-store`.
+2. User explicitly clicks the prepared portal button. Helper uses configured
+   account/tenant/UI scopes and transient claims; no event carries plaintext claims.
+3. Same endpoint, JSON `{ticket, operation: "complete"}`, same cookie/origin,
+   new UI token in `Authorization: Bearer ...`. Existing Entra validation checks
+   tenant, audience, delegated scope, expiry and signature; current principal/
+   session must match the ticket. Atomic replacement invalidates the old session.
+4. Helper unmounts, clears thread selection, and remounts without sending or
+   replaying a message. User submits a new request.
+
+Add the recovery endpoint/helper to the existing proxy route allowlist. No new
+service, secret, configuration key or Azure redirect URI is introduced. Tickets
+expire after 180 seconds; restored controls can require a fresh sign-in.
+Existing embedded affinity and browser cookie requirements remain unchanged.
+
+The existing outbound browser bridge guard admits only this named notification,
+to one current Entra socket, with its verified encrypted session-bound ticket.
+Other functions, rooms/broadcasts, anonymous sessions and `window_message`
+remain blocked.
+
+Native download challenges use the same flow when an exact-origin portal
+opener is available; otherwise the page explicitly asks the user to return to
+the portal and reopen the assistant. No native download or model turn is
+automatically retried. Ordinary source 403 without valid claims remains denied.
+
 This guide describes the opt-in Chainlit Copilot integration in Agent Landing Zone UI.
 The feature supports two explicit authentication modes:
 

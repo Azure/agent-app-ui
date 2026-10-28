@@ -1,6 +1,7 @@
 """Native downloads authorize the current user, not a citation or chat label."""
 
 import asyncio
+import base64
 from contextlib import ExitStack
 import os
 import time
@@ -48,6 +49,7 @@ def metadata(oid=USER_A):
         "authorized": True, "auth_source": "oauth", "object_id": oid,
         "tenant_id": TENANT, "principal_id": f"{TENANT}:{oid}",
         "client_principal_id": oid, "access_token": oid + "-assertion",
+        "recovery_binding": "synthetic-native-session-aaaaaaaaaaaaaaaaaaaaaa",
     }
 
 
@@ -70,6 +72,8 @@ class NativeDownloadTests(unittest.IsolatedAsyncioTestCase):
         self.calls = []
         self.rows = [row()]
         self.storage_status = 200
+        self.search_status = 200
+        self.source_headers = {}
         self.service = self.stack.enter_context(patch.object(
             blob, "acquire_service_identity_token", AsyncMock(return_value="synthetic-workload"),
         ))
@@ -85,11 +89,11 @@ class NativeDownloadTests(unittest.IsolatedAsyncioTestCase):
             if request.method == "POST":
                 # The remote native permission evaluator is mocked at HTTP.
                 allowed = USER_A in request.headers["x-ms-query-source-authorization"]
-                return httpx.Response(200, json={"value": self.rows if allowed else []})
+                return httpx.Response(self.search_status, headers=self.source_headers, json={"value": self.rows if allowed else []})
             status = self.storage_status
             if request.url.path.startswith("/documents/") and USER_A not in request.headers["authorization"]:
                 status = 403
-            return httpx.Response(status, headers={"content-length": "14"}, stream=FileStream())
+            return httpx.Response(status, headers={"content-length": "14", **self.source_headers}, stream=FileStream())
         client = blob.NativeDownloadClient(Config(), transport=httpx.MockTransport(handler))
         self.legacy = Mock(side_effect=AssertionError("legacy reader used"))
         self.owner = AsyncMock(side_effect=AssertionError("classic owner lookup used"))
@@ -331,6 +335,48 @@ class NativeDownloadTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(asyncio.CancelledError):
             await response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, AsyncMock())
         closed.assert_awaited_once()
+
+    async def test_actual_storage_and_search_challenges_offer_same_bound_flow_without_retry(self):
+        import re
+        from gpt_rag_ui.auth.recovery import verify_recovery
+        claims = '{"access_token":{"acrs":{"value":"synthetic-private"}}}'
+        header = "Bearer claims=\"" + base64.b64encode(claims.encode()).decode() + "\""
+        with patch.dict(os.environ, {
+            "CHAINLIT_AUTH_SECRET": "synthetic-native-recovery-secret-32-bytes",
+            "CHAINLIT_URL": "https://ui.example.com",
+        }):
+            for container in ("documents", "uploads"):
+                self.calls.clear()
+                self.storage_status = 403
+                self.search_status = 401 if container == "uploads" else 200
+                self.source_headers = {"www-authenticate": header}
+                response = await self.fetch(self.grant(container=container, path=PATH if container == "uploads" else "private.pdf"))
+                self.assertEqual(401, response.status_code)
+                self.assertIn("Continue sign-in", response.text)
+                self.assertNotIn("synthetic-private", response.text)
+                ticket = re.search(r"ticket=([^\"]+)", response.text).group(1)
+                self.assertEqual(claims, verify_recovery(ticket, metadata())["claims"])
+                with self.assertRaises(ValueError):
+                    verify_recovery(ticket, metadata(USER_B))
+                self.assertEqual(1, len(self.calls))
+            self.source_headers = {}
+            response = await self.fetch(self.grant())
+            self.assertEqual(403, response.status_code)
+            self.assertNotIn("Continue sign-in", response.text)
+            self.assertTrue(all(call.args[0] != "https://storage.azure.com/.default"
+                                for call in self.service.await_args_list))
+
+    async def test_refresh_challenge_recovery_still_requires_matching_download_grant(self):
+        claims = '{"access_token":{"acrs":{"value":"synthetic-private"}}}'
+        self.refresh.side_effect = DelegationError("interaction_required", claims_challenge=claims)
+        with patch.dict(os.environ, {
+            "CHAINLIT_AUTH_SECRET": "synthetic-native-recovery-secret-32-bytes",
+            "CHAINLIT_URL": "https://ui.example.com",
+        }):
+            self.assertEqual(401, (await self.fetch(self.grant())).status_code)
+            self.assertEqual(404, (await self.fetch(self.grant(), user="b")).status_code)
+        self.assertEqual([], self.calls)
+        self.obo.assert_not_awaited()
 
 
 if __name__ == "__main__":

@@ -17,13 +17,18 @@ from email.utils import format_datetime
 
 import httpx
 
-from gpt_rag_ui.clients.hosted_agent_client import acquire_obo_token, acquire_service_identity_token
+from gpt_rag_ui.clients.hosted_agent_client import acquire_obo_token, acquire_service_identity_token, _http_claims_challenge
+from gpt_rag_ui.auth.auth_common import validated_claims_challenge
 from gpt_rag_ui.config.appconfig import AppConfigClient
 
 
 class NativeDownloadError(RuntimeError):
-    def __init__(self, status_code: int = 403):
+    def __init__(self, status_code: int = 403, *, claims_challenge: object = None):
         self.status_code = status_code
+        self.claims_challenge = validated_claims_challenge(claims_challenge) if status_code in {401, 403} else None
+        self.code = ("interaction_required" if self.claims_challenge else
+                     "authentication_required" if status_code == 401 else
+                     "source_denied" if status_code == 403 else "authentication_unavailable")
         super().__init__("The protected document could not be authorized or downloaded.")
 
 
@@ -100,7 +105,10 @@ class NativeDownloadClient:
             }), stream=True)
             stack.push_async_callback(response.aclose)
             if response.status_code != 200:
-                raise NativeDownloadError(401 if response.status_code == 401 else 403)
+                raise NativeDownloadError(
+                    401 if response.status_code == 401 else 403,
+                    claims_challenge=_http_claims_challenge(response) if response.status_code in {401, 403} else None,
+                )
             try:
                 size = int(response.headers.get("content-length", ""))
             except ValueError:
@@ -168,7 +176,10 @@ class NativeDownloadClient:
                      "x-ms-query-source-authorization": user_token},
         ) as response:
             if response.status_code != 200:
-                raise NativeDownloadError(401 if response.status_code == 401 else 403)
+                raise NativeDownloadError(
+                    401 if response.status_code == 401 else 403,
+                    claims_challenge=_http_claims_challenge(response) if response.status_code in {401, 403} else None,
+                )
             content = bytearray()
             async for chunk in response.aiter_bytes(chunk_size=65536):
                 content.extend(chunk)

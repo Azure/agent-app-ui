@@ -17,8 +17,11 @@ from gpt_rag_ui.auth.auth_common import (
 )
 from gpt_rag_ui.config.dependencies import get_config
 from gpt_rag_ui.config.errors import ConfigurationError
+from gpt_rag_ui.auth.recovery import recovery_context, new_recovery_binding, RecoveryError
 
 logger = logging.getLogger("gpt_rag_ui.auth_oauth")
+# MSAL DEBUG includes token request bodies (including claims challenges).
+logging.getLogger("msal").setLevel(logging.WARNING)
 
 config = get_config()
 
@@ -152,7 +155,7 @@ def _resolve_msal_scopes_for_refresh(*, client_id: str) -> List[str]:
     return msal_scopes
 
 
-async def refresh_access_token(refresh_token: str) -> dict:
+async def refresh_access_token(refresh_token: str, *, claims_challenge: str | None = None) -> dict:
     """Exchange refresh_token -> new access_token using MSAL.
 
     This runs MSAL's blocking network call in a thread to avoid blocking the event loop.
@@ -162,7 +165,8 @@ async def refresh_access_token(refresh_token: str) -> dict:
     authority = f"https://login.microsoftonline.com/{tenant_id}"
     msal_scopes = _resolve_msal_scopes_for_refresh(client_id=client_id)
 
-    msal_app = msal.ConfidentialClientApplication(
+    msal_app = await asyncio.to_thread(
+        msal.ConfidentialClientApplication,
         client_id,
         authority=authority,
         client_credential=client_secret,
@@ -170,7 +174,10 @@ async def refresh_access_token(refresh_token: str) -> dict:
     )
 
     def _run_refresh() -> dict:
-        return msal_app.acquire_token_by_refresh_token(refresh_token=refresh_token, scopes=msal_scopes)
+        return msal_app.acquire_token_by_refresh_token(
+            refresh_token=refresh_token, scopes=msal_scopes,
+            **({"data": {"claims": claims_challenge}} if claims_challenge else {}),
+        )
 
     return await asyncio.to_thread(_run_refresh)
 
@@ -367,16 +374,21 @@ async def oauth_callback(
             "Ensure your scopes include 'offline_access' (for example: api://<CLIENT_ID>/user_impersonation,openid,profile,offline_access)."
         )
 
-    msal_app = msal.ConfidentialClientApplication(
+    msal_app = await asyncio.to_thread(
+        msal.ConfidentialClientApplication,
         client_id,
         authority=authority,
         client_credential=client_secret,
         timeout=10,
     )
 
+    recovery = recovery_context.get()
+    # This pinned MSAL method forwards token form data, not the
+    # claims_challenge keyword accepted by the auth-code/OBO methods.
+    exchange_kwargs = {"data": {"claims": recovery["claims"]}} if recovery and recovery.get("claims") else {}
     result = await asyncio.to_thread(
         msal_app.acquire_token_by_refresh_token,
-        refresh_token=refresh_token, scopes=msal_scopes,
+        refresh_token=refresh_token, scopes=msal_scopes, **exchange_kwargs,
     )
 
     if "error" in result:
@@ -409,6 +421,12 @@ async def oauth_callback(
             "OAuth identity is missing valid tid or oid claims."
         ) from exc
     tenant_id_claim, object_id = principal_id.split(":", 1)
+    if recovery and (
+        principal_id != recovery.get("p")
+        or tenant_id_claim != canonical_principal_id(tenant_id, object_id).split(":", 1)[0]
+        or not isinstance(id_token.get("exp"), int) or id_token["exp"] <= time.time()
+    ):
+        raise RecoveryError()
     user_name = str(id_token.get("name") or "").strip() or principal_id
 
     # "Single token" mode: do not call Microsoft Graph from the client.
@@ -444,6 +462,7 @@ async def oauth_callback(
         "principal_id": principal_id,
         "tenant_id": tenant_id_claim,
         "object_id": object_id,
+        "recovery_binding": new_recovery_binding(),
     }
 
     return cl.User(

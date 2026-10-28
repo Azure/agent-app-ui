@@ -1,6 +1,7 @@
 """Copilot authentication HTTP routes over the canonical session store."""
 
 import logging
+import asyncio
 
 import httpx
 from fastapi import FastAPI, status
@@ -14,6 +15,7 @@ from gpt_rag_ui.auth.embed_auth import (
     set_copilot_session_cookie,
 )
 from gpt_rag_ui.auth.entra_token import EntraTokenError
+from gpt_rag_ui.auth.recovery import RecoveryError, verify_recovery
 from gpt_rag_ui.config.appconfig import AppConfigClient
 from gpt_rag_ui.config.embed_config import EmbedSettings
 
@@ -85,6 +87,62 @@ def register_copilot_auth_routes(
         max_attempts=settings.bootstrap_rate_limit_per_minute,
         max_keys=max(256, min(settings.max_sessions * 2, 20000)),
     )
+
+    @app.post("/copilot/auth/recovery")
+    async def recover_copilot(request: Request) -> JSONResponse:
+        # The existing middleware also protects this path; keep exact Origin at
+        # this credential-release boundary even when the router is used alone.
+        if request.headers.getlist("Origin") not in [[origin] for origin in settings.allowed_origins]:
+            return auth_recovery_error(403)
+        previous = await sessions.get(session_id_from_request(request))
+        if not settings.uses_entra or not previous or previous.auth_mode != "entra":
+            return auth_recovery_error(401)
+        if request.headers.get("content-length", "").isdigit() and int(request.headers["content-length"]) > 65536:
+            return auth_recovery_error(400)
+        body = bytearray()
+        try:
+            async with asyncio.timeout(10):
+                async for part in request.stream():
+                    body.extend(part)
+                    if len(body) > 65536:
+                        return auth_recovery_error(400)
+        except TimeoutError:
+            return auth_recovery_error(400)
+        try:
+            import json
+            payload = json.loads(body)
+            if not isinstance(payload, dict) or set(payload) != {"ticket", "operation"}:
+                raise RecoveryError()
+            context = verify_recovery(payload["ticket"], previous.user_metadata())
+            if payload["operation"] == "challenge":
+                return JSONResponse({"claims": context["claims"]}, headers={"Cache-Control": "no-store"})
+            if payload["operation"] != "complete" or validator is None:
+                raise RecoveryError()
+            authorization = request.headers.getlist("Authorization")
+            if len(authorization) != 1 or not authorization[0].startswith("Bearer "):
+                raise RecoveryError()
+            access_token = authorization[0][7:]
+            claims = await validator.validate(access_token)
+            principal = canonical_principal_id(str(claims["tid"]), str(claims["oid"]))
+            principal_name = str(claims.get("preferred_username") or claims.get("email") or claims.get("upn") or "")
+            if principal != previous.principal_id or not is_user_authorized(config, principal_name, principal):
+                raise RecoveryError()
+            session = await sessions.replace(
+                previous_session_id=previous.session_id, access_token=access_token,
+                claims=claims, display_name=previous.display_name,
+                principal_name=principal_name, auth_mode="entra", require_current_session=True,
+            )
+            return _session_response(session, settings)
+        except (ValueError, KeyError, TypeError, EntraTokenError):
+            return auth_recovery_error(401)
+        except httpx.HTTPError:
+            return auth_recovery_error(503)
+
+    def auth_recovery_error(code: int) -> JSONResponse:
+        return JSONResponse(
+            {"detail": "Protected sign-in was not completed. Sign in through your portal and reopen the assistant."},
+            status_code=code, headers={"Cache-Control": "no-store"},
+        )
 
     @app.post("/copilot/auth/bootstrap")
     async def bootstrap_copilot(request: Request) -> JSONResponse:

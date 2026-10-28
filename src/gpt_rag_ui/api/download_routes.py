@@ -4,6 +4,8 @@ import asyncio
 import logging
 import mimetypes
 import os
+import html
+import json
 from typing import Any
 from urllib.parse import quote
 
@@ -12,6 +14,7 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from starlette.types import Scope, Receive, Send
 from gpt_rag_ui.auth.auth_common import DelegationError
+from gpt_rag_ui.auth.recovery import issue_recovery, configured_public_url, RecoveryError
 from gpt_rag_ui.auth.embed_auth import resolve_access_token
 from gpt_rag_ui.clients.blob import NativeDownloadClient, NativeBlobDownload, NativeDownloadError
 from gpt_rag_ui.clients.hosted_agent_client import HostedAgentAuthenticationError
@@ -25,6 +28,45 @@ from gpt_rag_ui.services.download_security import (
 )
 
 logger = logging.getLogger("gpt_rag_ui.download_security")
+
+
+def _download_recovery(metadata: dict, code: str, claims: object) -> StreamingResponse:
+    """Only offer sign-in for the authenticated download principal; never replay the GET."""
+    def page(content: str, *, status_code: int, headers: dict[str, str]) -> StreamingResponse:
+        return StreamingResponse(iter((content.encode("utf-8"),)), media_type="text/html",
+                                 status_code=status_code, headers=headers)
+
+    try:
+        ticket = issue_recovery(metadata, code, claims)
+        if metadata.get("auth_source") == "oauth":
+            href = configured_public_url() + "/api/auth/recovery?ticket=" + ticket
+            action = f'<a rel="noreferrer" href="{html.escape(href, quote=True)}">Continue sign-in</a>'
+        else:
+            from gpt_rag_ui.config.dependencies import get_config
+            from gpt_rag_ui.config.embed_config import load_embed_settings
+            origins = html.escape(json.dumps(list(load_embed_settings(get_config()).allowed_origins)), quote=True)
+            action = (
+                '<p>Return to your portal and use the assistant’s Continue sign-in control. '
+                'If this download opened from your portal in a new window, use the button below.</p>'
+                f'<button type="button" id="recover" data-origins="{origins}" data-ticket="{html.escape(ticket, quote=True)}">'
+                'Continue sign-in in portal</button>'
+                '<p id="recovery-status" role="status"></p><script src="/public/download-recovery.js"></script>'
+            )
+        return page(
+            "<h1>Protected download needs sign-in</h1>" + action
+            + "<p>After sign-in, request the download again. Nothing will be replayed.</p>",
+            status_code=401,
+            headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
+                     "Content-Security-Policy": "default-src 'none'; script-src 'self'; base-uri 'none'; frame-ancestors 'none'"},
+        )
+    except (ValueError, RecoveryError):
+        return page(
+            "<h1>Protected document access was not completed</h1>"
+            "<p>Access was denied or sign-in recovery is unavailable. Check your permissions, "
+            "or sign in through your portal or assistant again. Nothing was replayed.</p>",
+            status_code=403 if code == "source_denied" else 401,
+            headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
+        )
 
 
 class _NativeStreamingResponse(StreamingResponse):
@@ -61,13 +103,19 @@ def register_secure_download_route(
                 headers={"Cache-Control": "no-store"},
             )
 
+        pending_auth_error = None
         try:
             principal = await resolve_download_principal(
                 request, sessions, expected_principal_id=None if manager.native else grant.principal_id,
                 refresh_oauth=manager.native,
             )
-        except DelegationError:
-            raise HTTPException(401, "Sign in again to download this document.") from None
+        except DelegationError as exc:
+            if not manager.native:
+                raise HTTPException(401, "Sign in again to download this document.") from None
+            # Recover identity without retrying the failed token exchange. The
+            # grant must still match before any recovery context can be issued.
+            principal = await resolve_download_principal(request, sessions, refresh_oauth=False)
+            pending_auth_error = exc
         if not principal:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -88,6 +136,8 @@ def register_secure_download_route(
                 headers={"Cache-Control": "no-store"},
             )
         if manager.native:
+            if pending_auth_error is not None:
+                return _download_recovery(principal.metadata, pending_auth_error.code, pending_auth_error.claims_challenge)
             if native_client is None or grant.container not in allowed_containers:
                 raise HTTPException(404, "Not found")
             try:
@@ -99,9 +149,11 @@ def register_secure_download_route(
                     conversation_id=grant.conversation_id, assertion=assertion,
                     object_id=str(principal.metadata.get("object_id") or ""),
                 )
-            except (DelegationError, HostedAgentAuthenticationError):
-                raise HTTPException(401, "Sign in again or ask your administrator to check delegated consent.") from None
+            except (DelegationError, HostedAgentAuthenticationError) as exc:
+                return _download_recovery(principal.metadata, exc.code, exc.claims_challenge)
             except NativeDownloadError as exc:
+                if exc.status_code in {401, 403}:
+                    return _download_recovery(principal.metadata, exc.code, exc.claims_challenge)
                 raise HTTPException(exc.status_code, "Protected document access denied or unavailable.") from None
             return _NativeStreamingResponse(
                 native_download, media_type="application/octet-stream",

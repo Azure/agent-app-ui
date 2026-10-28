@@ -1,5 +1,59 @@
 # Python development
 
+## Protected-source interactive authentication recovery
+
+The UI accepts safe `interaction_required`, `authentication_required`, and
+`source_denied` errors from the authenticated hosted stream. Both Invocations
+`error` frames and SDK `response.failed.response.error` terminals preserve
+bounded `claims_challenge` JSON. Only nonempty `access_token` claims are
+accepted; duplicate members, malformed Unicode/JSON, and values over 8192 UTF-8
+bytes are rejected. Provider messages/bodies are never rendered.
+
+Standalone endpoints, registered before the Chainlit mount:
+
+- `GET /auth/oauth/azure-ad`: ordinary configured-tenant MSAL login.
+- `GET /api/auth/recovery?ticket=<encrypted>`: explicit Continue sign-in.
+- `GET /auth/oauth/azure-ad/callback`: existing registered redirect URI.
+
+The 180-second encrypted context uses existing `CHAINLIT_AUTH_SECRET`;
+`CHAINLIT_URL` must be the configured HTTPS UI origin. No new setting or Azure
+redirect registration is required. State, nonce and PKCE remain request-local;
+claims go to the configured Entra authorize request, auth-code token exchange,
+and refresh-token form `data`. The pinned MSAL refresh method does **not**
+translate `claims_challenge` into token form data. Neither resource/authority
+hints nor redirects from a source are used. Existing sessions without a
+recovery binding require ordinary login. Successful callback rotates the binding.
+
+Recovery context is encrypted in links/cookies, never plaintext/base64-only,
+and bound to the current principal/login. Callback verifies the authenticated
+identity again; logout, account switching, expiry, tamper, invalid state and
+reused browser context fail closed. Concurrent login tabs intentionally use
+last-state-wins. Standalone tickets need no new replica-local registry.
+
+No model/tool request, partial stream, or download is replayed. Native downloads
+expose the same sign-in control only after the current signed grant is checked;
+ordinary source denial stays denied. Embedded downloads can notify an opener
+on exact configured portal origins; without an opener, the page explicitly
+requires returning to the portal and reopening the assistant.
+
+Claims are excluded from user metadata/history and diagnostics; encrypted
+element props can expire in restored history. OAuth/recovery URLs are excluded
+from HTTP tracing, authorization `Location` headers sanitized, MSAL body logging
+suppressed, and access-log query strings redacted. See
+[ADR-001](adr/ADR-001-interactive-protected-auth-recovery.md) and the
+[portal helper contract](copilot-embedding.md#protected-source-sign-in-recovery).
+
+Local regression commands:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p test_auth_recovery.py -v
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p test_native_downloads.py -v
+```
+
+`tests/auth_recovery_browser.html` exercises the bundled helper locally with
+synthetic MSAL/fetch boundaries; it makes no application Azure requests. These
+checks do not prove live Entra CA, browser/proxy settings or Azure deployment.
+
 This guide covers the shipped UI package and contributor workflow. For
 platform setup, deployment, identity permissions, and supported component
 versions, use the [central product documentation](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/).

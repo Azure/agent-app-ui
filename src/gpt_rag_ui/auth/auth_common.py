@@ -12,17 +12,31 @@ logger = logging.getLogger("gpt_rag_ui.auth_common")
 
 def validated_claims_challenge(value: object) -> str | None:
     """Keep a bounded Entra claims challenge out of diagnostic text."""
-    if not isinstance(value, str) or not value or len(value.encode("utf-8")) > 8192:
+    if not isinstance(value, str) or not value:
         return None
     try:
-        claims = json.loads(value)
-    except ValueError:
+        if len(value.encode("utf-8")) > 8192:
+            return None
+        def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+            result: dict[str, Any] = {}
+            for key, item in pairs:
+                if key in result:
+                    raise ValueError("Duplicate claims member")
+                result[key] = item
+            return result
+        def invalid_constant(constant: str) -> Any:
+            raise ValueError("Invalid JSON number")
+        claims = json.loads(value, object_pairs_hook=unique_object, parse_constant=invalid_constant)
+        json.dumps(claims, ensure_ascii=False).encode("utf-8")
+    except (ValueError, RecursionError, UnicodeError):
         return None
     if (
         not isinstance(claims, dict)
         or not claims
-        or not set(claims).issubset({"access_token", "id_token", "userinfo"})
-        or not all(isinstance(item, dict) for item in claims.values())
+        or set(claims) != {"access_token"}
+        or not isinstance(claims["access_token"], dict)
+        or not claims["access_token"]
+        or not all(item is None or isinstance(item, dict) for item in claims["access_token"].values())
     ):
         return None
     return value
@@ -39,7 +53,7 @@ class DelegationError(RuntimeError):
             ),
             "interaction_required": (
                 "Additional sign-in verification is required by your organization's "
-                "access policy. Sign out and sign in again to continue."
+                "access policy. Use Continue sign-in when available, or start a fresh sign-in."
             ),
             "configuration_error": (
                 "Delegated authentication is not configured correctly. "
@@ -53,7 +67,7 @@ class DelegationError(RuntimeError):
                 "and the application's delegated consent with your administrator."
             ),
             "authentication_required": (
-                "Your sign-in must be renewed. Please sign out and sign in again."
+                "Your sign-in must be renewed. Use Continue sign-in when available, or start a fresh sign-in."
             ),
         }
         self.code = code if code in messages else "authentication_required"

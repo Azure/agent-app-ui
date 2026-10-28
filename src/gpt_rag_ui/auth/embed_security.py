@@ -1426,11 +1426,38 @@ def configure_copilot_bridge_guards(
                 handler=guarded_engineio_disconnect,
             )
 
+    async def allowed_recovery_notification(event, args, kwargs) -> bool:
+        # A narrowly authenticated notification, not a general browser bridge.
+        # Never allow rooms/broadcasts, arbitrary function names or arguments.
+        if event != "call_fn":
+            return False
+        target = _socket_target(args, kwargs)
+        if not target:
+            return False
+        data = args[0] if args else kwargs.get("data")
+        if (not isinstance(data, dict) or set(data) != {"name", "args"}
+                or data.get("name") != "protectedAuthRecovery"
+                or not isinstance(data.get("args"), dict) or set(data["args"]) != {"ticket"}):
+            return False
+        from chainlit.session import WebsocketSession
+        from gpt_rag_ui.auth.recovery import verify_recovery
+        socket = WebsocketSession.get(target)
+        metadata = (getattr(getattr(socket, "user", None), "metadata", None) or {})
+        if metadata.get("copilot_auth_mode") != "entra" or metadata.get("auth_source") != "copilot_session":
+            return False
+        active = await sessions.get(metadata.get("copilot_session_id"))
+        if not active or active.auth_mode != "entra" or active.principal_id != socket.user.identifier:
+            return False
+        try:
+            return verify_recovery(data["args"]["ticket"], active.user_metadata())["mode"] == "entra"
+        except ValueError:
+            return False
+
     async def guarded_emit(event, *args, **kwargs):
         target = _socket_target(args, kwargs)
         if event in _BLOCKED_BRIDGE_EVENTS and _target_has_copilot_sockets(
             sio, target
-        ):
+        ) and not await allowed_recovery_notification(event, args, kwargs):
             logger.warning("Blocked outbound %s for a Copilot session", event)
             return None
         return await original_emit(event, *args, **kwargs)
@@ -1439,7 +1466,7 @@ def configure_copilot_bridge_guards(
         target = _socket_target(args, kwargs)
         if event in _BLOCKED_BRIDGE_EVENTS and _target_has_copilot_sockets(
             sio, target
-        ):
+        ) and not await allowed_recovery_notification(event, args, kwargs):
             raise PermissionError(
                 "Browser bridge calls are disabled for Copilot sessions."
             )

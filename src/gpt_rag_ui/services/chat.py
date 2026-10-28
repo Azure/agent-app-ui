@@ -34,6 +34,7 @@ from gpt_rag_ui.clients.ingestion_client import ingest_files_session
 from gpt_rag_ui.services.download_security import get_download_tokens, is_download_target_allowed
 from gpt_rag_ui.auth.embed_auth import is_copilot_session_active, resolve_access_token
 from gpt_rag_ui.auth.auth_common import DelegationError
+from gpt_rag_ui.auth.recovery import offer_auth_recovery
 
 from gpt_rag_ui.util.constants import APPLICATION_INSIGHTS_CONNECTION_STRING, APP_NAME, UUID_REGEX, REFERENCE_REGEX, TERMINATE_TOKEN
 from gpt_rag_ui.telemetry.monitoring import Telemetry
@@ -319,7 +320,10 @@ async def get_auth_info() -> dict:
                 access_token = metadata.get("access_token")
             except DelegationError as exc:
                 logger.warning("User authentication recovery required: reason=%s", exc.code)
-                cl.user_session.set("user", None)
+                if CHAT_BACKEND == "hosted_agent":
+                    await offer_auth_recovery(exc.code, exc.claims_challenge, user=app_user)
+                else:
+                    cl.user_session.set("user", None)
                 return {
                     "authorized": False, "access_token": None,
                     "auth_error": exc.code,
@@ -899,12 +903,14 @@ async def handle_message(message: cl.Message):
                     exc.code,
                 )
                 user_error_message = str(DelegationError(exc.code))
+                await offer_auth_recovery(exc.code, exc.claims_challenge, user=cl.user_session.get("user"))
                 full_text = user_error_message
                 await response_msg.stream_token(user_error_message)
 
             except (HostedAgentHTTPError, HostedAgentResponseError) as exc:
                 logger.warning("Hosted-agent continuity failed: reason=%s", exc.code)
                 user_error_message = _hosted_error_message(exc.code)
+                await offer_auth_recovery(exc.code, exc.claims_challenge, user=cl.user_session.get("user"))
                 full_text = user_error_message
                 await response_msg.stream_token(user_error_message)
 
@@ -1058,12 +1064,14 @@ async def handle_message(message: cl.Message):
             except HostedAgentAuthenticationError as exc:
                 logger.warning("Hosted-agent authentication failed: reason=%s", exc.code)
                 user_error_message = str(DelegationError(exc.code))
+                await offer_auth_recovery(exc.code, exc.claims_challenge, user=cl.user_session.get("user"))
                 full_text = user_error_message
                 await response_msg.stream_token(user_error_message)
 
             except (HostedAgentHTTPError, HostedAgentResponseError) as exc:
                 logger.warning("Hosted-agent request failed: reason=%s", exc.code)
                 user_error_message = _hosted_error_message(exc.code)
+                await offer_auth_recovery(exc.code, exc.claims_challenge, user=cl.user_session.get("user"))
                 full_text = user_error_message
                 await response_msg.stream_token(user_error_message)
 

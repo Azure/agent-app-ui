@@ -809,8 +809,12 @@ class HostedAgentClient:
                         "client_cancelled", "timeout", "shutdown",
                     } else "cancelled"
                     raise HostedAgentCancelledError(f"Hosted agent {safe_reason}.")
-                elif event_type == "error":
+                elif event_type in {"error", "response.failed"}:
                     terminal_event_seen = True
+                    if event_type == "response.failed":
+                        failed_response = data.get("response")
+                        failed_error = failed_response.get("error") if isinstance(failed_response, dict) else None
+                        data = failed_error if isinstance(failed_error, dict) else {}
                     raise HostedAgentResponseError(
                         "The hosted agent could not complete this request.",
                         code=str(data.get("code") or ""),

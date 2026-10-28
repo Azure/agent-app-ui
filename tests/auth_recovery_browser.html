@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Offline recovery helper regression</title>
+<div id="status" role="status"></div><pre id="result">RUNNING</pre>
+<script src="../public/protected-auth-recovery.js"></script>
+<script>
+(async () => {
+  const check = (v, m) => { if (!v) throw new Error(m); };
+  const claims = '{"access_token":{"acrs":{"value":"synthetic-private"}}}';
+  const calls = [], popups = [], widgets = [];
+  const account = { homeAccountId: "synthetic-account" };
+  const statusElement = document.getElementById("status");
+  let deny = false, mismatch = false, popupBlocked = false;
+  const config = {
+    msalInstance: {
+      getConfiguration: () => ({cache: {cacheLocation: "memoryStorage", temporaryCacheLocation: "memoryStorage"}}),
+      getActiveAccount: () => account,
+      acquireTokenPopup: async options => {
+        popups.push(options);
+        if (popupBlocked) throw new Error("synthetic-private-provider-token");
+        return {accessToken: "synthetic-token", account: mismatch ? {homeAccountId: "other"} : account};
+      },
+    },
+    account, tenantId: "11111111-2222-4333-8444-555555555555",
+    scopes: ["api://synthetic/user_impersonation"], chainlitServer: "https://ui.example.com", statusElement,
+  };
+  window.fetch = async (url, options) => {
+    calls.push({url, options});
+    return {ok: !deny, json: async () => ({claims})};
+  };
+  window.unmountChainlitWidget = () => widgets.push("unmount");
+  window.clearChainlitCopilotThreadId = () => widgets.push("clear");
+  window.mountChainlitWidget = () => widgets.push("mount");
+  const notify = () => new Promise(resolve => window.dispatchEvent(new CustomEvent("chainlit-call-fn", {
+    detail: {name: "protectedAuthRecovery", args: {ticket: "synthetic-encrypted"}, callback: resolve},
+  })));
+  let dispose = installProtectedAuthRecovery(config);
+  check((await notify()).status === "ready", "notification handshake");
+  check(popups.length === 0, "must require explicit click");
+  check(calls[0].options.credentials === "include", "existing session");
+  check(!calls[0].url.includes("claims"), "no claims in URL");
+  await statusElement.querySelector("button").onclick();
+  check(popups[0].claims === claims, "claims reach popup");
+  check(popups[0].account === account && popups[0].scopes.join() === config.scopes.join(), "configured account/scopes");
+  check(popups[0].authority === "https://login.microsoftonline.com/" + config.tenantId, "configured tenant");
+  check(calls[1].options.headers.Authorization === "Bearer synthetic-token", "token only in authorized completion");
+  check(JSON.parse(calls[1].options.body).operation === "complete", "complete operation");
+  check(widgets.join(",") === "unmount,clear,mount", "rotate widget without turn replay");
+  check(!statusElement.textContent.includes("synthetic-private"), "no private UI text");
+  dispose();
+
+  // Account mismatch, popup denial, and source/handshake denial do not remount.
+  for (const kind of ["account", "popup", "denial"]) {
+    calls.length = popups.length = widgets.length = 0;
+    mismatch = kind === "account"; popupBlocked = kind === "popup"; deny = kind === "denial";
+    dispose = installProtectedAuthRecovery(config);
+    const result = await notify();
+    if (kind !== "denial") await statusElement.querySelector("button").onclick();
+    else check(result.status === "unavailable", "source denial");
+    check(widgets.length === 0, "no successful fallback");
+    check(!statusElement.textContent.includes("synthetic-private"), "private failure text redacted");
+    dispose();
+  }
+  mismatch = popupBlocked = deny = false;
+  calls.length = 0;
+  dispose = installProtectedAuthRecovery(config);
+  window.dispatchEvent(new MessageEvent("message", {
+    origin: "https://evil.example", data: {type: "alz-protected-auth", ticket: "synthetic"},
+  }));
+  await Promise.resolve();
+  check(calls.length === 0, "foreign origin ignored");
+  await notify();
+  const button = statusElement.querySelector("button");
+  dispose(); // Logout/account switch while pending.
+  await button.onclick();
+  check(widgets.length === 0, "disposed/logout context cannot complete");
+  document.getElementById("result").textContent = "PASS: explicit popup, claims, account/origin isolation, denial, logout and no replay";
+  document.documentElement.dataset.result = "pass";
+})().catch(error => {
+  document.getElementById("result").textContent = "FAIL: " + error.message;
+  document.documentElement.dataset.result = "fail";
+});
+</script></html>
