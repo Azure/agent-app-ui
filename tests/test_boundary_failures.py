@@ -8,6 +8,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
+import httpx
+
 from gpt_rag_ui.auth.embed_auth import CopilotSessionStore
 from gpt_rag_ui.telemetry.monitoring import Telemetry
 
@@ -18,6 +20,82 @@ class BoundaryFailureTests(unittest.IsolatedAsyncioTestCase):
             os.environ, {"CHAT_BACKEND": "orchestrator", "CHAINLIT_AUTH_SECRET": "test-secret"},
         ):
             return importlib.import_module("gpt_rag_ui.services.chat")
+
+    async def test_hosted_auth_failures_are_safe_and_actionable_in_both_paths(self):
+        from gpt_rag_ui.clients.hosted_agent_client import (
+            HostedAgentAuthenticationError, HostedAgentHTTPError, HostedAgentResponseError,
+        )
+        from gpt_rag_ui.services.hosted_continuity import (
+            ContinuityPersistenceError, ConversationNotFoundError,
+        )
+        chat = self.chat()
+        for continuity in (False, True):
+            for failure, expected in (
+                (
+                    HostedAgentAuthenticationError(
+                        "synthetic-private-provider-token", code="consent_required",
+                    ),
+                    "administrator",
+                ),
+                (
+                    HostedAgentAuthenticationError(
+                        "synthetic-private-provider-token", code="interaction_required",
+                        claims_challenge='{"access_token":{"synthetic":"private"}}',
+                    ),
+                    "verification",
+                ),
+                (HostedAgentHTTPError(403), "denied"),
+                (
+                    HostedAgentResponseError(
+                        "synthetic-private-provider-token", code="source_denied",
+                    ),
+                    "denied",
+                ),
+                (httpx.ConnectError("synthetic-private-provider-token"), "couldn't reach"),
+                (httpx.ReadTimeout("synthetic-private-provider-token"), "too long"),
+            ):
+                with self.subTest(continuity=continuity, failure=type(failure).__name__):
+                    closed = []
+
+                    async def fail(*args, **kwargs):
+                        try:
+                            raise failure
+                            yield
+                        finally:
+                            closed.append(True)
+
+                    response = AsyncMock()
+                    response.content = ""
+                    fake_cl = SimpleNamespace(
+                        Message=Mock(return_value=response),
+                        user_session=SimpleNamespace(get=lambda key: None, set=Mock()),
+                        chat_context=SimpleNamespace(to_openai=lambda: []),
+                    )
+                    with ExitStack() as stack:
+                        for name, value in {
+                            "cl": fake_cl, "tracer": MagicMock(),
+                            "CHAT_BACKEND": "hosted_agent", "HOSTED_CONTINUITY_ENABLED": continuity,
+                            "SHOW_STATISTICS": False, "ENABLE_FEEDBACK": False,
+                            "get_auth_info": AsyncMock(return_value={
+                                "authorized": True, "object_id": "test-oid",
+                            }),
+                            "build_invocation_messages": Mock(return_value=[]),
+                            "call_hosted_agent_stream": fail,
+                            "get_hosted_continuity_coordinator": Mock(
+                                return_value=SimpleNamespace(run_turn=fail),
+                            ),
+                            "ContinuityPersistenceError": ContinuityPersistenceError,
+                            "ConversationNotFoundError": ConversationNotFoundError,
+                        }.items():
+                            stack.enter_context(patch.object(chat, name, value, create=True))
+                        with self.assertLogs(chat.logger, level="WARNING") as logs:
+                            await chat.handle_message(SimpleNamespace(
+                                id="auth-reference", content="question", elements=[],
+                            ))
+                    self.assertIn(expected, response.content)
+                    self.assertNotIn("synthetic-private", response.content + "\n".join(logs.output))
+                    self.assertTrue(all(record.exc_info is None for record in logs.records))
+                    self.assertEqual([True], closed)
 
     async def test_chat_failure_boundaries_report_errors_and_close_generators(self):
         from gpt_rag_ui.clients.hosted_agent_client import HostedAgentAuthenticationError, HostedAgentCancelledError
@@ -192,6 +270,7 @@ class BoundaryFailureTests(unittest.IsolatedAsyncioTestCase):
                     stack.enter_context(patch(
                         "gpt_rag_ui.clients.ingestion_client._read_file_bytes", return_value=b"x",
                     ))
+                    stack.enter_context(patch.dict(os.environ, {"CHAT_BACKEND": "orchestrator"}))
                     await chat.handle_message(SimpleNamespace(
                         id="retry-reference", content="question", elements=files,
                     ))
@@ -214,6 +293,45 @@ class BoundaryFailureTests(unittest.IsolatedAsyncioTestCase):
                     else:
                         owner.assert_not_awaited()
                         self.assertNotEqual(payloads[0]["conversationId"], payloads[1]["conversationId"])
+
+    async def test_protected_upload_identity_failure_uses_existing_failure_ux(self):
+        from gpt_rag_ui.clients import ingestion_client
+        chat = self.chat()
+        state = {"hosted_agent_conversation_id": "hosted-conversation"}
+        response = AsyncMock()
+        response.content = ""
+        fake_cl = SimpleNamespace(
+            File=SimpleNamespace, Message=Mock(return_value=response),
+            user_session=SimpleNamespace(
+                get=state.get, set=lambda key, value: state.__setitem__(key, value),
+            ),
+            chat_context=SimpleNamespace(to_openai=lambda: []),
+        )
+        with (
+            patch.dict(os.environ, {"CHAT_BACKEND": "hosted_agent"}),
+            patch.object(chat, "cl", fake_cl),
+            patch.object(chat, "tracer", MagicMock()),
+            patch.object(chat, "CHAT_BACKEND", "hosted_agent"),
+            patch.object(chat, "load_ingestion_uploads_enabled", return_value=True),
+            patch.object(ingestion_client, "load_ingestion_uploads_enabled", return_value=True),
+            patch.object(chat, "get_auth_info", AsyncMock(return_value={
+                "authorized": True, "object_id": "", "access_token": "synthetic-api-assertion",
+            })),
+            patch.object(chat, "ingest_files_session", ingestion_client.ingest_files_session),
+            patch.object(ingestion_client.httpx, "AsyncClient") as http,
+            self.assertLogs(chat.logger, level="ERROR") as logs,
+        ):
+            await chat.handle_message(SimpleNamespace(
+                id="upload-reference", content="question",
+                elements=[SimpleNamespace(mime="application/pdf", name="upload.pdf", path="upload.pdf", size=1)],
+            ))
+        http.assert_not_called()
+        self.assertIn("File ingestion failed", response.content)
+        self.assertIn("Your question was not sent", response.content)
+        self.assertNotIn("processed successfully", response.content)
+        self.assertNotIn("uploaded_docs", state)
+        self.assertNotIn("synthetic-api-assertion", response.content + "\n".join(logs.output))
+        response.update.assert_awaited_once()
 
     async def test_upload_retry_does_not_bypass_existing_conversation_ownership(self):
         chat = self.chat()

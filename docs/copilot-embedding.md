@@ -26,7 +26,8 @@ authentication or per-user retrieval requirement.
 In Entra mode, the portal must request a delegated access token for the
 configured UI API audience and scope, not a Microsoft Graph token. The UI's
 confidential-client registration also needs consent for the downstream
-hosted data-plane permissions. A successful bootstrap proves UI
+Foundry and Search permissions, plus Storage delegated access for shared Blob
+downloads. A successful bootstrap proves UI
 authentication, not downstream OBO consent, agent access, or document-level
 retrieval authorization. Conversation owner binding is a separate control
 and does not replace retrieval permissions. Follow the
@@ -49,8 +50,9 @@ or creating an HTTP client. Anonymous Copilot uploads remain disabled
 regardless of this flag. Hosted uploads require an already issued hosted
 conversation ID, so start with a text message. A Chainlit thread ID is not a
 replacement. The flag does not change text chat, authentication, OBO, or
-retrieval permissions. There is no replacement native conversation upload
-path.
+retrieval permissions. Native retrieval uses the existing ingestion path's
+uploader ACLs and mandatory conversation scope, not a new Foundry file-upload
+API. Uploads require the validated session's explicit uploader object ID.
 
 ## Rendering and token flow
 
@@ -368,8 +370,16 @@ not unrestricted blob routes. Redemption rechecks:
 
 Anonymous mode denies citation download redemption because it has no durable
 authenticated identity. Do not assume this describes every standalone
-citation. Standalone rendering retains its legacy SAS/direct-link behavior.
-The secure download route applies its own authenticated ownership checks.
+citation. Classic orchestrator standalone rendering retains its legacy
+SAS/direct-link behavior. Native hosted mode instead uses this authenticated
+grant route for both standalone and embedded citations, including restored
+links. Native grants contain hash bindings, not the opaque session cookie.
+Shared Blob/ADLS reads use the current user's Storage OBO; conversation uploads
+require fresh native Search authorization of the exact document and conversation
+with uploader-only ACLs before a workload Blob read. Native routes do not use
+classic conversation ownership, SAS signing, or container-only anonymous readers.
+See [Python development](python-development.md) for the existing settings,
+delegated permission/RBAC contract, and bounded fail-closed query/stream limits.
 
 ## Logout, account switching, and expiry
 

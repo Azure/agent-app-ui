@@ -71,6 +71,29 @@ class EntraTokenValidatorTests(unittest.IsolatedAsyncioTestCase):
             claims["oid"],
         )
 
+    async def test_work_iq_assertion_requires_own_app_audience_and_access_as_user(self):
+        validator = EntraTokenValidator(
+            tenant_id=TENANT_ID,
+            audience=PORTAL_CLIENT_ID,
+            required_scope="access_as_user",
+            clock_skew_seconds=0,
+            jwks_loader=self.validator._jwks_loader,
+        )
+        valid = self.create_token(
+            aud=PORTAL_CLIENT_ID, scp="user_impersonation access_as_user",
+        )
+        self.assertEqual(TENANT_ID, (await validator.validate(valid))["tid"])
+        for overrides in (
+            {"aud": "https://search.azure.com"},
+            {"scp": "user_impersonation"},
+            {"scp": None},
+            {"exp": int(time.time()) - 10},
+            {"tid": "99999999-8888-7777-6666-555555555555"},
+        ):
+            claims = {"aud": PORTAL_CLIENT_ID, "scp": "access_as_user", **overrides}
+            with self.subTest(overrides=overrides), self.assertRaises(EntraTokenError):
+                await validator.validate(self.create_token(**claims))
+
     async def test_rejects_wrong_audience(self):
         with self.assertRaises(EntraTokenError):
             await self.validator.validate(

@@ -11,6 +11,7 @@ import chainlit as cl
 import msal
 
 from gpt_rag_ui.auth.auth_common import (
+    DelegationError,
     canonical_principal_id,
     is_user_authorized,
 )
@@ -165,6 +166,7 @@ async def refresh_access_token(refresh_token: str) -> dict:
         client_id,
         authority=authority,
         client_credential=client_secret,
+        timeout=10,
     )
 
     def _run_refresh() -> dict:
@@ -198,9 +200,9 @@ async def ensure_fresh_user_access_token(user: cl.User, *, min_ttl_seconds: int 
 
     result = await refresh_access_token(refresh_token_value)
     if "error" in result:
-        error_desc = result.get("error_description", "Unknown error")
-        logger.warning("User token refresh failed: %s", error_desc)
-        raise RuntimeError(f"token refresh failed: {error_desc}")
+        recovery = DelegationError.from_msal(result)
+        logger.warning("User token refresh failed: reason=%s", recovery.code)
+        raise recovery from None
 
     new_access_token = result.get("access_token")
     new_refresh_token = result.get("refresh_token") or refresh_token_value
@@ -369,22 +371,18 @@ async def oauth_callback(
         client_id,
         authority=authority,
         client_credential=client_secret,
+        timeout=10,
     )
 
-    result = msal_app.acquire_token_by_refresh_token(refresh_token=refresh_token, scopes=msal_scopes)
+    result = await asyncio.to_thread(
+        msal_app.acquire_token_by_refresh_token,
+        refresh_token=refresh_token, scopes=msal_scopes,
+    )
 
     if "error" in result:
-        error_desc = result.get("error_description", "Unknown error")
-        if "AADSTS65001" in error_desc:
-            logger.error("Token acquisition failed (consent required): %s", error_desc)
-            raise RuntimeError(
-                "Token acquisition failed: AADSTS65001 (consent required). "
-                "Grant consent for this app in Entra ID (App Registration -> API permissions -> Grant admin consent) "
-                "or allow user consent, then sign in again."
-            )
-
-        logger.error("Token acquisition failed: %s", error_desc)
-        raise RuntimeError(f"Token acquisition failed: {error_desc}")
+        recovery = DelegationError.from_msal(result)
+        logger.warning("Token acquisition failed: reason=%s", recovery.code)
+        raise recovery from None
 
     access_token = result.get("access_token")
     refresh_token = result.get("refresh_token") or refresh_token

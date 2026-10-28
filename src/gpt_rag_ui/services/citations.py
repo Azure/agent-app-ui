@@ -8,7 +8,7 @@ from typing import Optional, Set
 
 from gpt_rag_ui.clients.blob import BlobClient
 from gpt_rag_ui.config.dependencies import get_config
-from gpt_rag_ui.services.download_security import get_download_tokens, is_download_target_allowed
+from gpt_rag_ui.services.download_security import get_download_tokens, is_download_target_allowed, native_downloads_enabled
 from gpt_rag_ui.util.constants import REFERENCE_REGEX
 from gpt_rag_ui.telemetry.boundary_diagnostics import log_boundary_failure
 
@@ -277,6 +277,11 @@ def resolve_reference_href(
     principal_id: str = "",
     copilot_session_id: str = "",
 ) -> Optional[str]:
+    if native_downloads_enabled(config):
+        return _resolve_native_reference_href(
+            raw_href, conversation_id=conversation_id,
+            principal_id=principal_id, copilot_session_id=copilot_session_id,
+        )
     if not COPILOT_ENABLED or not copilot_session_id:
         return _resolve_legacy_reference_href(raw_href)
     return _resolve_secure_reference_href(
@@ -285,6 +290,65 @@ def resolve_reference_href(
         principal_id=principal_id,
         copilot_session_id=copilot_session_id,
     )
+
+
+def _resolve_native_reference_href(
+    raw_href: str, *, conversation_id: str, principal_id: str,
+    copilot_session_id: str,
+) -> Optional[str]:
+    """A signed target selector, never a document entitlement or Blob SAS."""
+    if not principal_id:
+        return None
+    try:
+        manager = get_download_tokens()
+        if not manager.native:
+            return None
+        parsed = urllib.parse.urlsplit((raw_href or "").strip())
+        if parsed.query or parsed.username or parsed.password:
+            return None
+        session_id = copilot_session_id or "oauth"
+        prefix = manager.public_url + "/api/download/"
+        if raw_href.startswith(prefix):
+            token = raw_href[len(prefix):].split("#", 1)[0]
+            grant = manager.verify(token)
+            if not grant or grant.principal_id != manager.identity_binding(principal_id):
+                return None
+            return manager.issue(
+                principal_id=principal_id, session_id=session_id,
+                conversation_id=grant.conversation_id,
+                container=grant.container, blob_name=grant.blob_name,
+            )
+        if parsed.scheme or parsed.netloc:
+            if parsed.scheme != "https" or parsed.netloc not in {
+                f"{STORAGE_ACCOUNT_NAME}.blob.core.windows.net",
+                f"{STORAGE_ACCOUNT_NAME}.dfs.core.windows.net",
+            }:
+                # External web sources remain browser links, not privileged
+                # download targets; foreign Storage accounts are not accepted.
+                if (
+                    parsed.scheme == "https" and parsed.hostname
+                    and not parsed.hostname.endswith((".blob.core.windows.net", ".dfs.core.windows.net"))
+                ):
+                    return raw_href
+                return None
+        path = urllib.parse.unquote(parsed.path).lstrip("/")
+        if "\\" in path or "%" in path or any(p in {"", ".", ".."} for p in path.split("/")):
+            return None
+        container, _, blob = path.partition("/")
+        if container == "conversations":
+            container, blob = CONVERSATION_DOCUMENTS_CONTAINER, path
+        if container not in {DOCUMENTS_CONTAINER, IMAGES_CONTAINER, CONVERSATION_DOCUMENTS_CONTAINER} or not container:
+            return None
+        if container == CONVERSATION_DOCUMENTS_CONTAINER and (
+            not conversation_id or not blob.startswith(f"conversations/{conversation_id}/")
+        ):
+            return None
+        return manager.issue(
+            principal_id=principal_id, session_id=session_id,
+            conversation_id=conversation_id, container=container, blob_name=blob,
+        )
+    except (RuntimeError, ValueError):
+        return None
 
 def replace_source_reference_links(
     text: str,
@@ -310,9 +374,12 @@ def replace_source_reference_links(
         if resolved_href:
             if references is not None:
                 references.add(resolved_href)
-            logger.debug("Resolved reference '%s' -> '%s'", raw_href, resolved_href)
+            if native_downloads_enabled(config):
+                logger.debug("Resolved protected citation through the authenticated download route")
+            else:
+                logger.debug("Resolved reference '%s' -> '%s'", raw_href, resolved_href)
             return f"[{display_text}]({resolved_href})"
-        if copilot_session_id:
+        if copilot_session_id or native_downloads_enabled(config):
             logger.debug(
                 "Rendering citation '%s' without an unauthorized link",
                 display_text,

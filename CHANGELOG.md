@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Native protected retrieval delegation.** Preserve user-delegated Foundry
+  invocation while forwarding a separately acquired Search user token. Require
+  the matching UI-app assertion for configured Work IQ, use refreshed API
+  tokens on the same turn, and surface safe consent and authentication failures
+  without provider bodies or credential-bearing diagnostic headers. Reject
+  protected uploads without the verified session's explicit uploader object ID
+  before reading files or calling ingestion. Native downloads now use signed
+  authenticated UI grants, current-user Storage OBO for shared documents, and
+  a fresh exact-document native Search gate before workload upload reads;
+  native citations never mint Blob SAS or reach legacy anonymous readers.
+
 ## [v3.3.1] - 2026-10-27
 
 ### Fixed

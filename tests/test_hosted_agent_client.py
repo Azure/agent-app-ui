@@ -979,8 +979,16 @@ class TestUserDelegatedAuth(unittest.IsolatedAsyncioTestCase):
             ]
 
         self.assertTrue(any(meta.get("completed") for _, meta in results))
-        mocked_obo.assert_awaited_once_with(
-            "signed-in-user-access-token", "api://hosted-agent/.default"
+        self.assertEqual(mocked_obo.await_count, 2)
+        self.assertEqual(
+            [call.args for call in mocked_obo.await_args_list],
+            [
+                ("signed-in-user-access-token", "api://hosted-agent/.default"),
+                ("signed-in-user-access-token", "https://search.azure.com/.default"),
+            ],
+        )
+        self.assertEqual(
+            capture[0]["headers"]["x-client-search-token"], "delegated-data-plane-token",
         )
         transmitted_authorization = capture[0]["headers"]["authorization"]
         self.assertEqual(

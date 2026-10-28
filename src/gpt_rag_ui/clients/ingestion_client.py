@@ -8,6 +8,8 @@ from typing import Optional
 
 import httpx
 
+from gpt_rag_ui.auth.auth_common import normalize_guid
+from gpt_rag_ui.config.chat_backend import load_chat_backend
 from gpt_rag_ui.config.appconfig import (
     ATTACHMENTS_UNAVAILABLE_MESSAGE,
     load_ingestion_uploads_enabled,
@@ -108,7 +110,37 @@ def _ingest_response_failure_detail(body: object) -> Optional[str]:
     return "; ".join(messages[:cap]) + tail
 
 
+def _ingestion_uploader_oid(auth_info: dict | None) -> str | None:
+    metadata = auth_info or {}
+    required = (
+        load_chat_backend(get_config()) == "hosted_agent"
+        or bool(metadata.get("access_token"))
+    )
+    # Protected uploads use only the explicit oid supplied by the existing
+    # verified OAuth/Entra session. Never reinterpret a display/partition ID
+    # or derive identity by decoding a downstream Search token.
+    raw_oid = metadata.get("object_id")
+    if not required:
+        raw_oid = raw_oid or metadata.get("client_principal_id")
+    try:
+        if not isinstance(raw_oid, str):
+            raise ValueError("Missing object ID")
+        oid = normalize_guid(raw_oid, claim_name="uploader")
+        if oid == "00000000-0000-0000-0000-000000000000":
+            raise ValueError("Placeholder object ID")
+        return oid
+    except ValueError:
+        if required:
+            raise RuntimeError(
+                "Protected uploads require the authenticated user's valid object ID."
+            ) from None
+        if isinstance(raw_oid, str) and raw_oid.strip() and raw_oid.lower() not in {"no-auth", "anonymous"}:
+            logger.warning("Ingestion ACL omitted because the uploader identity is not an oid")
+        return None
+
+
 async def _build_ingest_documents_payload(conversation_id: str, question_id: str, files: list[dict], auth_info: dict | None = None) -> dict:
+    uploader_oid = _ingestion_uploader_oid(auth_info)
     cid = (conversation_id or "").strip() or (question_id or "").strip() or str(uuid.uuid4())
 
     to_process = files[:_MAX_INGEST_FILES]
@@ -171,24 +203,8 @@ async def _build_ingest_documents_payload(conversation_id: str, question_id: str
 
     payload: dict = {"conversationId": cid, "values": values}
 
-    # Stamp the uploader's object id as the document ACL so that, when the
-    # search index has permission trimming enabled, the uploader can retrieve
-    # their own uploaded chunks (issue #478). Skip anonymous/placeholder ids.
-    _ACL_PLACEHOLDERS = {"", "no-auth", "anonymous", "00000000-0000-0000-0000-000000000000"}
-    uploader_oid = str(
-        (auth_info or {}).get("object_id")
-        or (auth_info or {}).get("client_principal_id")
-        or ""
-    ).strip()
-    if uploader_oid.lower() not in _ACL_PLACEHOLDERS:
-        try:
-            uploader_oid = str(uuid.UUID(uploader_oid))
-        except ValueError:
-            logger.warning(
-                "Ingestion ACL omitted because the uploader identity is not an oid"
-            )
-        else:
-            payload["securityUserIds"] = [uploader_oid]
+    if uploader_oid:
+        payload["securityUserIds"] = [uploader_oid]
 
     return payload
 

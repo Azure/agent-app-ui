@@ -7,6 +7,188 @@ import logging
 import os
 import time
 from datetime import datetime, timedelta, timezone
+import asyncio
+import json
+import re
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import AsyncExitStack
+from dataclasses import dataclass
+from email.utils import format_datetime
+
+import httpx
+
+from gpt_rag_ui.clients.hosted_agent_client import acquire_obo_token, acquire_service_identity_token
+from gpt_rag_ui.config.appconfig import AppConfigClient
+
+
+class NativeDownloadError(RuntimeError):
+    def __init__(self, status_code: int = 403):
+        self.status_code = status_code
+        super().__init__("The protected document could not be authorized or downloaded.")
+
+
+@dataclass
+class NativeBlobDownload:
+    chunks: AsyncIterator[bytes]
+    size: int
+    close: Callable[[], Awaitable[None]]
+
+
+class NativeDownloadClient:
+    """Fresh user authorization, fixed destinations, no SAS or auth fallback."""
+
+    def __init__(self, config: AppConfigClient, *, transport: httpx.AsyncBaseTransport | None = None):
+        self.config = config
+        self.transport = transport
+
+    def _get(self, key: str, default: str = "") -> str:
+        value = os.environ.get(key)
+        if value is None:
+            value = self.config.get(key, default, str)
+        return str(value or "").strip()
+
+    async def open(
+        self, *, container: str, blob_name: str, conversation_id: str,
+        assertion: str, object_id: str,
+    ) -> NativeBlobDownload:
+        account = self._get("STORAGE_ACCOUNT_NAME")
+        allowed = {
+            self._get("DOCUMENTS_STORAGE_CONTAINER"),
+            self._get("DOCUMENTS_IMAGES_STORAGE_CONTAINER"),
+            self._get("CONVERSATION_DOCUMENTS_STORAGE_CONTAINER"),
+        } - {""}
+        if (
+            not assertion or not object_id
+            or not re.fullmatch(r"[a-z0-9]{3,24}", account)
+            or container not in allowed
+            or not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?", container)
+            or not blob_name or len(blob_name) > 1024
+            or any(c in blob_name for c in ("%", "\\"))
+            or any(ord(c) < 32 for c in blob_name)
+            or any(p in {"", ".", ".."} for p in blob_name.split("/"))
+            or (
+                blob_name.startswith("conversations/")
+                and container != self._get("CONVERSATION_DOCUMENTS_STORAGE_CONTAINER")
+            )
+        ):
+            raise NativeDownloadError()
+        url = f"https://{account}.blob.core.windows.net/{container}/{quote(blob_name, safe='/')}"
+        stack = AsyncExitStack()
+        http = await stack.enter_async_context(httpx.AsyncClient(
+            transport=self.transport, follow_redirects=False,
+            timeout=httpx.Timeout(20.0, connect=10.0),
+        ))
+        acquired = False
+        try:
+            if container == self._get("CONVERSATION_DOCUMENTS_STORAGE_CONTAINER"):
+                if not conversation_id or not blob_name.startswith(f"conversations/{conversation_id}/"):
+                    raise NativeDownloadError()
+                async with asyncio.timeout(30):
+                    await self._authorize_upload(
+                        http, assertion, object_id, conversation_id, url,
+                    )
+                token = await acquire_service_identity_token("https://storage.azure.com/.default")
+            else:
+                # Storage enforces the current user's RBAC/ADLS ACL. Failure
+                # never falls back to this application's workload identity.
+                token = await acquire_obo_token(assertion, "https://storage.azure.com/.default")
+            response = await http.send(http.build_request("GET", url, headers={
+                "Authorization": f"Bearer {token}",
+                "x-ms-version": "2023-11-03",
+                "x-ms-date": format_datetime(datetime.now(timezone.utc), usegmt=True),
+                "Accept-Encoding": "identity",
+            }), stream=True)
+            stack.push_async_callback(response.aclose)
+            if response.status_code != 200:
+                raise NativeDownloadError(401 if response.status_code == 401 else 403)
+            try:
+                size = int(response.headers.get("content-length", ""))
+            except ValueError:
+                raise NativeDownloadError(503) from None
+            if size < 1 or size > 100 * 1024 * 1024 or response.headers.get("content-encoding", "identity") != "identity":
+                raise NativeDownloadError(503)
+
+            async def chunks() -> AsyncIterator[bytes]:
+                received = 0
+                try:
+                    async with asyncio.timeout(120):
+                        async for chunk in response.aiter_raw(chunk_size=65536):
+                            received += len(chunk)
+                            if received > size:
+                                raise NativeDownloadError(503)
+                            yield chunk
+                        if received != size:
+                            raise NativeDownloadError(503)
+                except (httpx.HTTPError, TimeoutError):
+                    raise NativeDownloadError(503) from None
+                finally:
+                    await stack.aclose()
+            acquired = True
+            return NativeBlobDownload(chunks(), size, stack.aclose)
+        except (httpx.HTTPError, TimeoutError):
+            raise NativeDownloadError(503) from None
+        finally:
+            if not acquired:
+                await stack.aclose()
+
+    async def _authorize_upload(
+        self, http: httpx.AsyncClient, assertion: str, object_id: str,
+        conversation_id: str, blob_url: str,
+    ) -> None:
+        endpoint = self._get("SEARCH_SERVICE_QUERY_ENDPOINT").rstrip("/")
+        parsed = urlparse(endpoint)
+        index = self._get("SEARCH_RAG_INDEX_NAME", "ragindex")
+        version = self._get("SEARCH_API_VERSION", "2025-11-01-preview")
+        if (
+            parsed.scheme != "https" or not parsed.hostname
+            or not parsed.hostname.endswith(".search.windows.net")
+            or parsed.netloc != parsed.hostname or parsed.path
+            or parsed.query or parsed.fragment
+            or not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,127}", index)
+            or version not in {"2025-05-01-preview", "2025-08-01-preview",
+                               "2025-11-01-preview", "2026-08-01-preview"}
+        ):
+            raise NativeDownloadError(503)
+        user_token = await acquire_obo_token(assertion, "https://search.azure.com/.default")
+        service_token = await acquire_service_identity_token("https://search.azure.com/.default")
+        cid = conversation_id.replace("'", "''")
+        body = {
+            "search": "*", "top": 1000,
+            "select": "url,conversationId,metadata_security_user_ids,metadata_security_group_ids,metadata_security_rbac_scope",
+            "filter": (
+                f"conversationId eq '{cid}' and metadata_security_user_ids/any()"
+                " and not metadata_security_group_ids/any()"
+                " and (metadata_security_rbac_scope eq '' or metadata_security_rbac_scope eq null)"
+            ),
+        }
+        async with http.stream(
+            "POST", f"{endpoint}/indexes/{index}/docs/search",
+            params={"api-version": version}, json=body,
+            headers={"Authorization": f"Bearer {service_token}",
+                     "x-ms-query-source-authorization": user_token},
+        ) as response:
+            if response.status_code != 200:
+                raise NativeDownloadError(401 if response.status_code == 401 else 403)
+            content = bytearray()
+            async for chunk in response.aiter_bytes(chunk_size=65536):
+                content.extend(chunk)
+                if len(content) > 4 * 1024 * 1024:
+                    raise NativeDownloadError(503)
+        try:
+            result = json.loads(content)
+        except ValueError:
+            raise NativeDownloadError(503) from None
+        rows = result.get("value") if isinstance(result, dict) else None
+        if not isinstance(rows, list) or not any(
+            isinstance(row, dict)
+            and row.get("url") == blob_url
+            and row.get("conversationId") == conversation_id
+            and row.get("metadata_security_user_ids") == [object_id]
+            and row.get("metadata_security_group_ids") in (None, [])
+            and row.get("metadata_security_rbac_scope") in (None, "")
+            for row in rows
+        ):
+            raise NativeDownloadError()
 
 class BlobClient:
     def __init__(self, blob_url, credential=None):

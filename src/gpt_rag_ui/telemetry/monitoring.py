@@ -62,6 +62,18 @@ class Telemetry:
 
     @staticmethod
     def configure_monitoring(config: AppConfigClient, telemetry_connection_string: str, api_name : str):
+        # Header capture is opt-in in OTel, but operators can enable broad
+        # capture. Credential redaction must remain mandatory in that case.
+        sanitize_key = "OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_SANITIZE_FIELDS"
+        existing = os.environ.get(sanitize_key, "")
+        required = (
+            "authorization", "cookie", "set-cookie", "x-client-.*",
+            "x-ms-query-source-authorization",
+            "x-ms-query-work-iq-source-authorization", "www-authenticate",
+        )
+        os.environ[sanitize_key] = ",".join(
+            dict.fromkeys([item.strip() for item in existing.split(",") if item.strip()] + list(required))
+        )
         # Connection string may come from App Configuration; in env-only mode it might be missing.
         Telemetry.telemetry_connection_string = config.get_value(
             telemetry_connection_string,

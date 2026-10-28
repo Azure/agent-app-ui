@@ -116,6 +116,44 @@ user message. A Chainlit thread ID is not a hosted conversation ID.
 
 The default hosted bearer is obtained through OBO from the current user's
 access token. A missing token or failed exchange stops the hosted invocation.
+`RETRIEVAL_AUTH_MODE` defaults to `native_search`: the same current API
+assertion is exchanged separately for `https://search.azure.com/.default`;
+the resulting raw token is forwarded only as `x-client-search-token`.
+Configured Work IQ additionally requires `WORK_IQ_APPLICATION_ID` to match
+the UI API, optional `WORK_IQ_TENANT_ID` to match its tenant, and an API
+assertion obtained with `api://<WORK_IQ_APPLICATION_ID>/access_as_user`.
+It forwards that original validated assertion separately, never the Search
+token. `WORK_IQ_FEDERATED_CREDENTIAL_ID` is platform-owned source configuration,
+not a UI credential. Separate Work IQ app OBO is not implemented.
+See the central product documentation for provisioning and consent.
+Hosted uploads require the existing authenticated session's explicit valid
+`object_id` before file reads or ingestion dispatch; a display/partition ID
+is not an uploader ACL. Native Search then combines that uploader ACL with
+the conversation filter.
+
+Native hosted citations use the existing signed download route, never the
+legacy SAS/container-only readers. Standalone requests authenticate the
+current Chainlit cookie and refresh its OAuth assertion; embedded grants also
+bind the active opaque session. Shared Blob/ADLS downloads use that user's
+Storage OBO (`https://storage.azure.com/.default`), with no workload fallback.
+Conversation uploads first run a fresh native Search query against
+`SEARCH_SERVICE_QUERY_ENDPOINT` / `SEARCH_RAG_INDEX_NAME`, using Search OBO
+and workload query transport. Only an exact `url` and conversation match
+with the pinned uploader-only ACL permits subsequent workload Blob access.
+No classic Cosmos conversation-owner lookup is used for native downloads.
+
+The existing platform index must have native permission filtering enabled.
+`SEARCH_API_VERSION` must support it (default `2025-11-01-preview`); the UI
+workload requires Search Index Data Reader and upload-container Blob Data
+Reader. Shared users need Storage delegated consent and applicable Blob RBAC
+or ADLS ACLs. Existing `STORAGE_ACCOUNT_NAME`, document/image/conversation
+container settings, `CHAINLIT_URL`, and `CHAINLIT_AUTH_SECRET` configure the
+fixed destination and signed UI grants. No customer URL or ID grants access.
+Responses stream asynchronously in 64 KiB chunks, cap documents at 100 MiB
+and stream time at 120 seconds, and close on cancellation. The upload gate
+caps results at 1,000 rows/4 MiB/30 seconds and fails closed if the exact
+authorized document is absent, including beyond that cap. There is no
+started-response retry. Classic downloads outside hosted mode are unchanged.
 OBO itself can contact Entra. There is no fallback to service identity.
 `HOSTED_AGENT_AUTH_MODE=service_identity` is an explicit exception that makes
 the UI service the caller, not the user. Login, OBO consent, managed

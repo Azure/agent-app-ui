@@ -491,7 +491,7 @@
       "module_id": "app",
       "symbol": "get_auth_info",
       "review": "AI technical assessment in .quality/exception-technical-review.json; eligible for source-bound technical validation, not independent approval.",
-      "handler_fingerprint": "bf0ec6030fe1c98ded509c27e73724060f97261d38264fb8982fc8b3ba2a1ee7",
+      "handler_fingerprint": "cb07292e39c8098ae1f21393be5330b940731a4979ab010974967f6da34fb203",
       "caught_types": [
         "Exception"
       ],
@@ -535,7 +535,7 @@
       "module_id": "app",
       "symbol": "handle_message",
       "review": "AI technical assessment in .quality/exception-technical-review.json; eligible for source-bound technical validation, not independent approval.",
-      "handler_fingerprint": "ad6979e446f0019651c4c18b10b66abf39ce0c75ed3b030df95cba4c4a9f10e0",
+      "handler_fingerprint": "e9c2122ad2813bb6b8c79c9733346a03d90b0db62e622f9e676d4b8736a12d54",
       "caught_types": [
         "Exception"
       ],
@@ -556,7 +556,7 @@
       "module_id": "app",
       "symbol": "handle_message",
       "review": "AI technical assessment in .quality/exception-technical-review.json; eligible for source-bound technical validation, not independent approval.",
-      "handler_fingerprint": "98757639cc367aacceacedee9b66ed04260a44defd022087f363614f1891a107",
+      "handler_fingerprint": "c1dfe3e11c8fadf2d7b68dde29ef9b306fb8d5809797b9af5b64a4789fef5c96",
       "caught_types": [
         "Exception"
       ],

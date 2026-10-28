@@ -4,11 +4,17 @@ import asyncio
 import logging
 import mimetypes
 import os
+from typing import Any
 from urllib.parse import quote
 
 from azure.core.exceptions import ResourceNotFoundError
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
+from starlette.types import Scope, Receive, Send
+from gpt_rag_ui.auth.auth_common import DelegationError
+from gpt_rag_ui.auth.embed_auth import resolve_access_token
+from gpt_rag_ui.clients.blob import NativeDownloadClient, NativeBlobDownload, NativeDownloadError
+from gpt_rag_ui.clients.hosted_agent_client import HostedAgentAuthenticationError
 
 from gpt_rag_ui.auth.embed_auth import CopilotSessionStore
 from gpt_rag_ui.telemetry.boundary_diagnostics import log_boundary_failure
@@ -21,6 +27,18 @@ from gpt_rag_ui.services.download_security import (
 logger = logging.getLogger("gpt_rag_ui.download_security")
 
 
+class _NativeStreamingResponse(StreamingResponse):
+    def __init__(self, download: NativeBlobDownload, **kwargs: Any) -> None:
+        self.download = download
+        super().__init__(download.chunks, **kwargs)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            await self.download.close()
+
+
 def register_secure_download_route(
     app: FastAPI,
     *,
@@ -29,8 +47,9 @@ def register_secure_download_route(
     allowed_containers: set[str],
     conversation_container: str,
     shared_containers: set[str],
-    sessions: CopilotSessionStore,
+    sessions: CopilotSessionStore | None,
     conversation_resolver: ConversationResolver = get_owned_conversation,
+    native_client: NativeDownloadClient | None = None,
 ) -> None:
     @app.get("/api/download/{grant_token}")
     async def download_blob_file(grant_token: str, request: Request) -> StreamingResponse:
@@ -42,11 +61,13 @@ def register_secure_download_route(
                 headers={"Cache-Control": "no-store"},
             )
 
-        principal = await resolve_download_principal(
-            request,
-            sessions,
-            expected_principal_id=grant.principal_id,
-        )
+        try:
+            principal = await resolve_download_principal(
+                request, sessions, expected_principal_id=None if manager.native else grant.principal_id,
+                refresh_oauth=manager.native,
+            )
+        except DelegationError:
+            raise HTTPException(401, "Sign in again to download this document.") from None
         if not principal:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -55,13 +76,41 @@ def register_secure_download_route(
             )
 
         if (
-            grant.principal_id != principal.principal_id
-            or grant.session_id != principal.session_id
+            grant.principal_id != manager.identity_binding(principal.principal_id)
+            or grant.session_id != (
+                manager.identity_binding(principal.session_id or "oauth")
+                if manager.native else principal.session_id
+            )
         ):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Not found",
                 headers={"Cache-Control": "no-store"},
+            )
+        if manager.native:
+            if native_client is None or grant.container not in allowed_containers:
+                raise HTTPException(404, "Not found")
+            try:
+                assertion = await resolve_access_token(principal.metadata)
+                if not assertion:
+                    raise HTTPException(401, "Authentication required")
+                native_download = await native_client.open(
+                    container=grant.container, blob_name=grant.blob_name,
+                    conversation_id=grant.conversation_id, assertion=assertion,
+                    object_id=str(principal.metadata.get("object_id") or ""),
+                )
+            except (DelegationError, HostedAgentAuthenticationError):
+                raise HTTPException(401, "Sign in again or ask your administrator to check delegated consent.") from None
+            except NativeDownloadError as exc:
+                raise HTTPException(exc.status_code, "Protected document access denied or unavailable.") from None
+            return _NativeStreamingResponse(
+                native_download, media_type="application/octet-stream",
+                headers={
+                    "Content-Disposition": "attachment; filename*=UTF-8''" + quote(os.path.basename(grant.blob_name), safe=""),
+                    "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+                    "Referrer-Policy": "no-referrer",
+                    "Content-Length": str(native_download.size),
+                },
             )
         if not await conversation_resolver(
             grant.conversation_id,

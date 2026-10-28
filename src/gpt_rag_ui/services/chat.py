@@ -14,6 +14,10 @@ import httpx
 
 from gpt_rag_ui.config.chat_backend import load_chat_backend, select_upload_conversation_id
 from gpt_rag_ui.clients.orchestrator_client import call_orchestrator_stream
+from gpt_rag_ui.clients.hosted_agent_client import (
+    HostedAgentAuthenticationError, HostedAgentCancelledError,
+    HostedAgentHTTPError, HostedAgentResponseError,
+)
 from gpt_rag_ui.services.feedback import create_feedback_actions
 from gpt_rag_ui.services.citations import (
     format_hosted_citation_sources,
@@ -29,6 +33,7 @@ from gpt_rag_ui.services.conversation_security import get_owned_conversation
 from gpt_rag_ui.clients.ingestion_client import ingest_files_session
 from gpt_rag_ui.services.download_security import get_download_tokens, is_download_target_allowed
 from gpt_rag_ui.auth.embed_auth import is_copilot_session_active, resolve_access_token
+from gpt_rag_ui.auth.auth_common import DelegationError
 
 from gpt_rag_ui.util.constants import APPLICATION_INSIGHTS_CONNECTION_STRING, APP_NAME, UUID_REGEX, REFERENCE_REGEX, TERMINATE_TOKEN
 from gpt_rag_ui.telemetry.monitoring import Telemetry
@@ -46,8 +51,6 @@ CHAT_BACKEND = load_chat_backend(config)
 
 if CHAT_BACKEND == "hosted_agent":
     from gpt_rag_ui.clients.hosted_agent_client import (
-        HostedAgentAuthenticationError,
-        HostedAgentCancelledError,
         build_invocation_messages,
         call_hosted_agent_stream,
         validate_hosted_agent_config,
@@ -260,6 +263,15 @@ def _feedback_is_available(auth_info: dict) -> bool:
     return auth_info.get("copilot_auth_mode") != "anonymous"
 
 
+def _hosted_error_message(code: str) -> str:
+    if code in {
+        "authentication_required", "interaction_required", "consent_required",
+        "source_denied", "configuration_error", "authentication_unavailable",
+    }:
+        return str(DelegationError(code))
+    return "The hosted agent could not complete this request. Please retry or contact support."
+
+
 async def get_auth_info() -> dict:
     """Return the effective auth info for the current session.
 
@@ -301,6 +313,17 @@ async def get_auth_info() -> dict:
                 refreshed = await auth_oauth.ensure_fresh_user_access_token(app_user, min_ttl_seconds=120)
                 if refreshed:
                     cl.user_session.set("user", app_user)
+                # Refresh mutates metadata; do not exchange the captured old
+                # assertion on the same turn.
+                metadata = app_user.metadata or {}
+                access_token = metadata.get("access_token")
+            except DelegationError as exc:
+                logger.warning("User authentication recovery required: reason=%s", exc.code)
+                cl.user_session.set("user", None)
+                return {
+                    "authorized": False, "access_token": None,
+                    "auth_error": exc.code,
+                }
             except Exception:
                 # If refresh fails, clear the user session so the UI can re-auth.
                 log_boundary_failure(
@@ -501,6 +524,9 @@ async def handle_message(message: cl.Message):
                 "Blocked request due to expired auth session: conversation=%s",
                 conversation_id or "new",
             )
+            return
+        if auth_info.get("auth_error"):
+            await response_msg.stream_token(str(DelegationError(auth_info["auth_error"])))
             return
 
         if not auth_info.get('authorized', False):
@@ -868,23 +894,25 @@ async def handle_message(message: cl.Message):
 
             except HostedAgentAuthenticationError as exc:
                 logger.warning(
-                    "Hosted-agent continuity authentication failed: question_id=%s error=%s",
+                    "Hosted-agent continuity authentication failed: question_id=%s reason=%s",
                     message.id,
-                    exc,
+                    exc.code,
                 )
-                user_error_message = (
-                    "You need to be signed in to continue this hosted conversation. "
-                    "Please sign in and try again."
-                )
+                user_error_message = str(DelegationError(exc.code))
+                full_text = user_error_message
+                await response_msg.stream_token(user_error_message)
+
+            except (HostedAgentHTTPError, HostedAgentResponseError) as exc:
+                logger.warning("Hosted-agent continuity failed: reason=%s", exc.code)
+                user_error_message = _hosted_error_message(exc.code)
                 full_text = user_error_message
                 await response_msg.stream_token(user_error_message)
 
             except HostedAgentCancelledError as exc:
                 logger.warning(
-                    "Hosted agent cancelled response: conversation=%s question_id=%s reason=%s",
+                    "Hosted agent cancelled response: conversation=%s question_id=%s",
                     conversation_id or "pending",
                     message.id,
-                    exc,
                 )
                 user_error_message = (
                     "The hosted agent cancelled this request. "
@@ -894,12 +922,11 @@ async def handle_message(message: cl.Message):
                 full_text = user_error_message
                 await response_msg.stream_token(user_error_message)
 
-            except httpx.ConnectError as e:
+            except httpx.ConnectError:
                 logger.error(
-                    "Hosted agent unreachable (connection error): conversation=%s question_id=%s error=%s",
+                    "Hosted agent unreachable (connection error): conversation=%s question_id=%s",
                     conversation_id or "pending",
                     message.id,
-                    e,
                 )
                 user_error_message = (
                     "We couldn't reach the hosted agent service. "
@@ -909,12 +936,11 @@ async def handle_message(message: cl.Message):
                 full_text = user_error_message
                 await response_msg.stream_token(user_error_message)
 
-            except httpx.TimeoutException as e:
+            except httpx.TimeoutException:
                 logger.error(
-                    "Hosted agent request timed out: conversation=%s question_id=%s error=%s",
+                    "Hosted agent request timed out: conversation=%s question_id=%s",
                     conversation_id or "pending",
                     message.id,
-                    e,
                 )
                 user_error_message = (
                     "The hosted agent service took too long to respond. "
@@ -1029,12 +1055,23 @@ async def handle_message(message: cl.Message):
                     full_text += citation_text
                     await response_msg.stream_token(citation_text)
 
+            except HostedAgentAuthenticationError as exc:
+                logger.warning("Hosted-agent authentication failed: reason=%s", exc.code)
+                user_error_message = str(DelegationError(exc.code))
+                full_text = user_error_message
+                await response_msg.stream_token(user_error_message)
+
+            except (HostedAgentHTTPError, HostedAgentResponseError) as exc:
+                logger.warning("Hosted-agent request failed: reason=%s", exc.code)
+                user_error_message = _hosted_error_message(exc.code)
+                full_text = user_error_message
+                await response_msg.stream_token(user_error_message)
+
             except HostedAgentCancelledError as exc:
                 logger.warning(
-                    "Hosted agent cancelled response: conversation=%s question_id=%s reason=%s",
+                    "Hosted agent cancelled response: conversation=%s question_id=%s",
                     conversation_id or "pending",
                     message.id,
-                    exc,
                 )
                 user_error_message = (
                     "The hosted agent cancelled this request. "
@@ -1044,12 +1081,11 @@ async def handle_message(message: cl.Message):
                 full_text = user_error_message
                 await response_msg.stream_token(user_error_message)
 
-            except httpx.ConnectError as e:
+            except httpx.ConnectError:
                 logger.error(
-                    "Hosted agent unreachable (connection error): conversation=%s question_id=%s error=%s",
+                    "Hosted agent unreachable (connection error): conversation=%s question_id=%s",
                     conversation_id or "pending",
                     message.id,
-                    e,
                 )
                 user_error_message = (
                     "We couldn't reach the hosted agent service. "
@@ -1059,12 +1095,11 @@ async def handle_message(message: cl.Message):
                 full_text = user_error_message
                 await response_msg.stream_token(user_error_message)
 
-            except httpx.TimeoutException as e:
+            except httpx.TimeoutException:
                 logger.error(
-                    "Hosted agent request timed out: conversation=%s question_id=%s error=%s",
+                    "Hosted agent request timed out: conversation=%s question_id=%s",
                     conversation_id or "pending",
                     message.id,
-                    e,
                 )
                 user_error_message = (
                     "The hosted agent service took too long to respond. "
