@@ -1,6 +1,10 @@
 import unittest
+import base64
+import json
 
-from gpt_rag_ui.auth.auth_common import canonical_principal_id, is_user_authorized
+import httpx
+
+from gpt_rag_ui.auth.auth_common import canonical_principal_id, is_user_authorized, http_claims_challenge
 
 
 TENANT_ID = "11111111-2222-3333-4444-555555555555"
@@ -18,6 +22,27 @@ class FakeConfig:
 
 
 class AuthCommonTests(unittest.TestCase):
+    def test_http_claims_parser_supports_direct_and_encoded_bearer_challenges(self):
+        claims = '{"access_token":{"acrs":{"essential":true,"value":"synthetic"}}}'
+        for value in (json.dumps(claims), base64.urlsafe_b64encode(claims.encode()).decode().rstrip("=")):
+            with self.subTest(encoded=value != json.dumps(claims)):
+                response = httpx.Response(401, headers={"www-authenticate": f"Bearer claims={value}"})
+                self.assertEqual(claims, http_claims_challenge(response))
+
+    def test_http_claims_parser_rejects_ambiguous_malformed_or_body_only_claims(self):
+        encoded = base64.b64encode(b'{"access_token":{"acrs":{"essential":true}}}').decode()
+        for headers in (
+            [],
+            [("www-authenticate", f"Basic claims={encoded}")],
+            [("www-authenticate", "Bearer claims=invalid")],
+            [("www-authenticate", f"Bearer claims={encoded}, claims={encoded}")],
+            [("www-authenticate", f"Bearer claims={encoded}"), ("www-authenticate", f"Bearer claims={encoded}")],
+            [("www-authenticate", "Bearer claims=" + "a" * 16384)],
+        ):
+            with self.subTest(headers=len(headers)):
+                response = httpx.Response(403, headers=headers, json={"claims": encoded})
+                self.assertIsNone(http_claims_challenge(response))
+
     def test_canonical_principal_requires_tenant_and_object(self):
         self.assertEqual(
             PRINCIPAL_ID,

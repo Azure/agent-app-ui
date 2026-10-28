@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 import json
 import logging
 import math
@@ -13,7 +12,6 @@ from collections.abc import AsyncGenerator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 from urllib.parse import urlparse
-from urllib.request import parse_http_list, parse_keqv_list
 
 import httpx
 import msal
@@ -28,7 +26,7 @@ from azure.identity.aio import (
 from gpt_rag_ui.config.dependencies import get_config
 from gpt_rag_ui.config.errors import ConfigurationError
 from gpt_rag_ui.auth.auth_common import (
-    DelegationError, normalize_guid, validated_claims_challenge,
+    DelegationError, normalize_guid, validated_claims_challenge, http_claims_challenge,
 )
 from gpt_rag_ui.auth.entra_token import EntraTokenError, EntraTokenValidator
 
@@ -282,28 +280,8 @@ def _credential_header(value: object) -> str:
     return value
 
 
-def _http_claims_challenge(response: httpx.Response) -> str | None:
-    headers = response.headers.get_list("www-authenticate")
-    if len(headers) != 1 or len(headers[0]) > 16384:
-        return None
-    scheme, _, parameters = headers[0].partition(" ")
-    if scheme.lower() != "bearer":
-        return None
-    try:
-        parts = parse_http_list(parameters)
-        keys = [part.partition("=")[0].strip().lower() for part in parts]
-        if len(set(keys)) != len(keys):
-            return None
-        challenge = parse_keqv_list(parts).get("claims", "")
-        direct = validated_claims_challenge(challenge)
-        if direct:
-            return direct
-        decoded = base64.b64decode(
-            challenge + "=" * (-len(challenge) % 4), altchars=b"-_", validate=True,
-        ).decode("utf-8")
-        return validated_claims_challenge(decoded)
-    except (ValueError, UnicodeError):
-        return None
+# Retain the former owner export for compatibility; parsing belongs to auth.
+_http_claims_challenge = http_claims_challenge
 
 
 def _work_iq_app_config() -> tuple[str, str] | None:
@@ -729,7 +707,7 @@ class HostedAgentClient:
                 raise HostedAgentHTTPError(
                     response.status_code,
                     claims_challenge=(
-                        _http_claims_challenge(response)
+                        http_claims_challenge(response)
                         if response.status_code in {401, 403} else None
                     ),
                 )

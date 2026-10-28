@@ -19,6 +19,8 @@ import chainlit as cl
 from cryptography.fernet import Fernet, InvalidToken
 
 from gpt_rag_ui.auth.auth_common import canonical_principal_id, validated_claims_challenge
+from gpt_rag_ui.config.dependencies import get_config
+from gpt_rag_ui.config.errors import ConfigurationError
 
 RECOVERY_TTL = 180
 CALLBACK_PATH = "/auth/oauth/azure-ad/callback"
@@ -118,11 +120,16 @@ def issue_recovery(metadata: dict[str, Any], code: str, claims: object) -> str:
     return seal_context({"p": principal, "b": binding, "mode": mode, "claims": validated}, purpose="recovery")
 
 
-def verify_recovery(ticket: str, metadata: dict[str, Any]) -> dict[str, Any]:
-    payload = open_context(ticket, purpose="recovery")
+def validate_recovery_binding(payload: dict[str, Any], metadata: dict[str, Any]) -> None:
+    """Require encrypted context to match the current authorized principal/session."""
     principal, binding, mode = _binding(metadata)
     if (payload.get("p"), payload.get("b"), payload.get("mode")) != (principal, binding, mode):
         raise RecoveryError()
+
+
+def verify_recovery(ticket: str, metadata: dict[str, Any]) -> dict[str, Any]:
+    payload = open_context(ticket, purpose="recovery")
+    validate_recovery_binding(payload, metadata)
     claims = payload.get("claims")
     if claims is not None and validated_claims_challenge(claims) is None:
         raise RecoveryError()
@@ -131,8 +138,10 @@ def verify_recovery(ticket: str, metadata: dict[str, Any]) -> dict[str, Any]:
 
 def configured_public_url() -> str:
     # Never derive redirects from Host/Forwarded, source challenges, or a request parameter.
-    from gpt_rag_ui.auth.oauth import get_env_var
-    value = (os.environ.get("CHAINLIT_URL") or get_env_var("CHAINLIT_URL") or "").rstrip("/")
+    try:
+        value = (os.environ.get("CHAINLIT_URL") or get_config().get("CHAINLIT_URL", "", str) or "").rstrip("/")
+    except ConfigurationError:
+        raise RecoveryError() from None
     parsed = urlsplit(value)
     if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
             or parsed.query or parsed.fragment or parsed.path not in {"", "/"}):

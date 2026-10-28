@@ -43,6 +43,14 @@ suppressed, and access-log query strings redacted. See
 [ADR-001](adr/ADR-001-interactive-protected-auth-recovery.md) and the
 [portal helper contract](copilot-embedding.md#protected-source-sign-in-recovery).
 
+Recovery routes use public typed `auth.oauth.resolve_oauth_runtime_config`,
+`auth.oauth.resolve_msal_scopes_for_refresh`, and
+`auth.recovery.validate_recovery_binding` interfaces. Recovery origin lookup
+uses the configuration provider directly (environment override first), not the
+OAuth callback module. Both hosted and native-download clients share
+`auth.auth_common.http_claims_challenge`; the former private OAuth resolvers and
+hosted parser remain compatibility aliases, not separate implementations.
+
 Local regression commands:
 
 ```powershell

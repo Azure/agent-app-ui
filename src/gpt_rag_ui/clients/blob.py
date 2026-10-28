@@ -17,8 +17,8 @@ from email.utils import format_datetime
 
 import httpx
 
-from gpt_rag_ui.clients.hosted_agent_client import acquire_obo_token, acquire_service_identity_token, _http_claims_challenge
-from gpt_rag_ui.auth.auth_common import validated_claims_challenge
+from gpt_rag_ui.clients.hosted_agent_client import acquire_obo_token, acquire_service_identity_token
+from gpt_rag_ui.auth.auth_common import validated_claims_challenge, http_claims_challenge
 from gpt_rag_ui.config.appconfig import AppConfigClient
 
 
@@ -107,7 +107,7 @@ class NativeDownloadClient:
             if response.status_code != 200:
                 raise NativeDownloadError(
                     401 if response.status_code == 401 else 403,
-                    claims_challenge=_http_claims_challenge(response) if response.status_code in {401, 403} else None,
+                    claims_challenge=http_claims_challenge(response) if response.status_code in {401, 403} else None,
                 )
             try:
                 size = int(response.headers.get("content-length", ""))
@@ -178,7 +178,7 @@ class NativeDownloadClient:
             if response.status_code != 200:
                 raise NativeDownloadError(
                     401 if response.status_code == 401 else 403,
-                    claims_challenge=_http_claims_challenge(response) if response.status_code in {401, 403} else None,
+                    claims_challenge=http_claims_challenge(response) if response.status_code in {401, 403} else None,
                 )
             content = bytearray()
             async for chunk in response.aiter_bytes(chunk_size=65536):

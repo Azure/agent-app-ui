@@ -1,8 +1,12 @@
 import logging
 import json
 import uuid
+import base64
 from collections.abc import Mapping
 from typing import Any
+from urllib.request import parse_http_list, parse_keqv_list
+
+import httpx
 
 from gpt_rag_ui.config.appconfig import AppConfigClient
 
@@ -40,6 +44,35 @@ def validated_claims_challenge(value: object) -> str | None:
     ):
         return None
     return value
+
+
+def http_claims_challenge(response: httpx.Response) -> str | None:
+    """Extract bounded claims from one Bearer WWW-Authenticate header.
+
+    Callers own the trusted response destination and eligible HTTP statuses.
+    Never derive authentication parameters from the provider response body.
+    """
+    headers = response.headers.get_list("www-authenticate")
+    if len(headers) != 1 or len(headers[0]) > 16384:
+        return None
+    scheme, _, parameters = headers[0].partition(" ")
+    if scheme.lower() != "bearer":
+        return None
+    try:
+        parts = parse_http_list(parameters)
+        keys = [part.partition("=")[0].strip().lower() for part in parts]
+        if len(set(keys)) != len(keys):
+            return None
+        challenge = parse_keqv_list(parts).get("claims", "")
+        direct = validated_claims_challenge(challenge)
+        if direct:
+            return direct
+        decoded = base64.b64decode(
+            challenge + "=" * (-len(challenge) % 4), altchars=b"-_", validate=True,
+        ).decode("utf-8")
+        return validated_claims_challenge(decoded)
+    except (ValueError, UnicodeError):
+        return None
 
 
 class DelegationError(RuntimeError):

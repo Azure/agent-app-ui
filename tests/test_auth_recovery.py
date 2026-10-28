@@ -30,6 +30,7 @@ from gpt_rag_ui.auth.auth_common import validated_claims_challenge
 from gpt_rag_ui.auth.embed_auth import CopilotSessionStore, COPILOT_SESSION_COOKIE
 from gpt_rag_ui.auth.entra_token import EntraTokenValidator
 from gpt_rag_ui.config.embed_config import EmbedSettings
+from gpt_rag_ui.config.errors import ConfigurationError
 
 TENANT = "11111111-2222-4333-8444-555555555555"
 ALICE = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
@@ -127,6 +128,50 @@ class RecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app), base_url=UI)
         self.addAsyncCleanup(self.client.aclose)
         self.login_user()
+
+    async def test_public_oauth_resolvers_preserve_configuration_scopes_and_legacy_aliases(self):
+        self.assertIs(oauth.resolve_oauth_runtime_config, oauth._resolve_oauth_runtime_config)
+        self.assertIs(oauth.resolve_msal_scopes_for_refresh, oauth._resolve_msal_scopes_for_refresh)
+        self.assertEqual((CLIENT, ENV["OAUTH_AZURE_AD_CLIENT_SECRET"], TENANT), oauth.resolve_oauth_runtime_config())
+        self.assertEqual([f"api://{CLIENT}/user_impersonation"],
+                         oauth.resolve_msal_scopes_for_refresh(client_id=CLIENT))
+        for scopes in ("User.Read", "api://other.example/user_impersonation"):
+            with patch.dict(os.environ, {"OAUTH_AZURE_AD_SCOPES": scopes}):
+                with self.assertRaises(RuntimeError):
+                    oauth.resolve_msal_scopes_for_refresh(client_id=CLIENT)
+        with patch.dict(os.environ, {"OAUTH_AZURE_AD_CLIENT_SECRET": ""}):
+            with self.assertRaises(RuntimeError):
+                oauth.resolve_oauth_runtime_config()
+
+    async def test_public_binding_validator_rejects_account_session_mode_and_authorization_changes(self):
+        context = recovery.verify_recovery(self.ticket(), metadata())
+        recovery.validate_recovery_binding(context, metadata())
+        for current in (metadata(oid=BOB), metadata(binding="synthetic-other-session-bbbbbbbbbbbbbbbb"),
+                        {**metadata(), "authorized": False}, {**metadata(), "recovery_binding": ""}):
+            with self.assertRaises(recovery.RecoveryError):
+                recovery.validate_recovery_binding(context, current)
+        for changed in ({**context, "mode": "entra"}, {**context, "p": ""}, {**context, "b": ""}):
+            with self.assertRaises(recovery.RecoveryError):
+                recovery.validate_recovery_binding(changed, metadata())
+
+    async def test_recovery_origin_uses_configuration_without_oauth_dependency(self):
+        with patch.object(recovery, "get_config") as provider:
+            self.assertEqual(UI, recovery.configured_public_url())
+            provider.assert_not_called()
+        with (patch.dict(os.environ, {"CHAINLIT_URL": ""}),
+              patch.object(recovery, "get_config") as provider,
+              patch.object(oauth, "get_env_var", side_effect=AssertionError("OAuth must not own recovery configuration"))):
+            provider.return_value.get.return_value = UI + "/"
+            self.assertEqual(UI, recovery.configured_public_url())
+            provider.return_value.get.assert_called_once_with("CHAINLIT_URL", "", str)
+            for value in ("", "http://ui.example.com", UI + "/path", UI + "?resource=other",
+                          UI + "#fragment", "https://user@ui.example.com"):
+                provider.return_value.get.return_value = value
+                with self.assertRaises(recovery.RecoveryError):
+                    recovery.configured_public_url()
+            provider.return_value.get.side_effect = ConfigurationError("synthetic configuration failure")
+            with self.assertRaises(recovery.RecoveryError):
+                recovery.configured_public_url()
 
     def login_user(self, oid=ALICE, binding="synthetic-binding-aaaaaaaaaaaaaaaaaaaaaaaa"):
         self.client.cookies.set("access_token", create_jwt(user(oid, binding)), domain="ui.example.com", path="/")

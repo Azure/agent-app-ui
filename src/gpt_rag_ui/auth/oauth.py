@@ -104,7 +104,7 @@ def _is_access_token_expiring(access_token: str, *, min_ttl_seconds: int = 120) 
     return ttl <= int(min_ttl_seconds)
 
 
-def _resolve_oauth_runtime_config() -> tuple[str, str, str]:
+def resolve_oauth_runtime_config() -> tuple[str, str, str]:
     """Return (client_id, client_secret, tenant_id) for MSAL operations."""
 
     # Prefer process env (bootstrapped by main.py), then App Configuration.
@@ -120,7 +120,8 @@ def _resolve_oauth_runtime_config() -> tuple[str, str, str]:
     return client_id, client_secret, tenant_id
 
 
-def _resolve_msal_scopes_for_refresh(*, client_id: str) -> List[str]:
+def resolve_msal_scopes_for_refresh(*, client_id: str) -> List[str]:
+    """Return configured UI API scopes, excluding MSAL-reserved OIDC scopes."""
     raw_scopes, scopes = read_scopes_list("OAUTH_AZURE_AD_SCOPES")
     if not scopes:
         scopes = [
@@ -155,15 +156,20 @@ def _resolve_msal_scopes_for_refresh(*, client_id: str) -> List[str]:
     return msal_scopes
 
 
+# Preserve former owner exports without duplicating resolution logic.
+_resolve_oauth_runtime_config = resolve_oauth_runtime_config
+_resolve_msal_scopes_for_refresh = resolve_msal_scopes_for_refresh
+
+
 async def refresh_access_token(refresh_token: str, *, claims_challenge: str | None = None) -> dict:
     """Exchange refresh_token -> new access_token using MSAL.
 
     This runs MSAL's blocking network call in a thread to avoid blocking the event loop.
     """
 
-    client_id, client_secret, tenant_id = _resolve_oauth_runtime_config()
+    client_id, client_secret, tenant_id = resolve_oauth_runtime_config()
     authority = f"https://login.microsoftonline.com/{tenant_id}"
-    msal_scopes = _resolve_msal_scopes_for_refresh(client_id=client_id)
+    msal_scopes = resolve_msal_scopes_for_refresh(client_id=client_id)
 
     msal_app = await asyncio.to_thread(
         msal.ConfidentialClientApplication,

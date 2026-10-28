@@ -21,12 +21,12 @@ from starlette.responses import Response, RedirectResponse, HTMLResponse
 
 from gpt_rag_ui.auth.auth_common import DelegationError, normalize_guid, canonical_principal_id
 from gpt_rag_ui.auth.oauth import (
-    _resolve_oauth_runtime_config, _resolve_msal_scopes_for_refresh, oauth_callback, msal,
+    resolve_oauth_runtime_config, resolve_msal_scopes_for_refresh, oauth_callback, msal,
 )
 from gpt_rag_ui.auth.recovery import (
     CALLBACK_PATH, RECOVERY_TTL, RecoveryError, configured_public_url, open_context,
     recovery_context, seal_context, verify_recovery,
-    install_recovery_log_protection,
+    install_recovery_log_protection, validate_recovery_binding,
 )
 
 _COOKIE = "alz_auth_flow"
@@ -87,7 +87,7 @@ async def _current_user(request: Request) -> User:
 
 
 def _application() -> msal.ConfidentialClientApplication:
-    client, secret, tenant = _resolve_oauth_runtime_config()
+    client, secret, tenant = resolve_oauth_runtime_config()
     tenant = normalize_guid(tenant, claim_name="configured tenant")
     return msal.ConfidentialClientApplication(client, client_credential=secret,
                                               authority=f"https://login.microsoftonline.com/{tenant}", timeout=10)
@@ -113,9 +113,9 @@ def register_auth_recovery_routes(app: FastAPI) -> None:
                 context = verify_recovery(ticket, user.metadata or {})
                 if context["mode"] != "oauth":
                     raise RecoveryError()
-            client_id, _, tenant = _resolve_oauth_runtime_config()
+            client_id, _, tenant = resolve_oauth_runtime_config()
             tenant = normalize_guid(tenant, claim_name="configured tenant")
-            scopes = _resolve_msal_scopes_for_refresh(client_id=client_id)
+            scopes = resolve_msal_scopes_for_refresh(client_id=client_id)
             state = secrets.token_urlsafe(32)
             msal_app = await asyncio.to_thread(_application)
             flow = await asyncio.to_thread(
@@ -169,9 +169,7 @@ def register_auth_recovery_routes(app: FastAPI) -> None:
             if context is not None:
                 current = await _current_user(request)
                 # Recheck binding on callback, including logout/account switch while at Entra.
-                from gpt_rag_ui.auth.recovery import _binding
-                if _binding(current.metadata or {}) != (context["p"], context["b"], "oauth"):
-                    raise RecoveryError()
+                validate_recovery_binding(context, current.metadata or {})
             msal_app = await asyncio.to_thread(_application)
             result = await asyncio.to_thread(
                 msal_app.acquire_token_by_auth_code_flow, flow,
@@ -183,7 +181,7 @@ def register_auth_recovery_routes(app: FastAPI) -> None:
             if not isinstance(signed_identity.get("exp"), int) or signed_identity["exp"] <= time.time():
                 raise RecoveryError()
             signed_principal = canonical_principal_id(signed_identity.get("tid", ""), signed_identity.get("oid", ""))
-            configured_tenant = normalize_guid(_resolve_oauth_runtime_config()[2], claim_name="configured tenant")
+            configured_tenant = normalize_guid(resolve_oauth_runtime_config()[2], claim_name="configured tenant")
             if signed_principal.split(":")[0] != configured_tenant or (context and signed_principal != context["p"]):
                 raise RecoveryError()
             context = context or {"p": signed_principal, "claims": None}

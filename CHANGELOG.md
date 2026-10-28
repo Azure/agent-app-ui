@@ -4,6 +4,12 @@
 
 ### Fixed
 
+- **Recovery authentication module boundaries.** Share bounded HTTP claims
+  parsing through its authentication owner, expose typed OAuth configuration
+  and recovery-binding validation interfaces, and resolve the recovery origin
+  through the configuration provider without an OAuth dependency cycle.
+  Preserve legacy exports, current authorization checks, and recovery protocol.
+
 - **Interactive protected-source sign-in recovery.** Preserve authenticated
   downstream Conditional Access challenges through hosted errors and native
   downloads. Offer explicit principal/session-bound encrypted recovery,
