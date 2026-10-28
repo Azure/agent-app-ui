@@ -128,7 +128,11 @@ class UploadConfigurationTests(unittest.TestCase):
 
                 with (
                     self.subTest(backend=backend, value=value),
-                    patch.dict(os.environ, {"CHAT_BACKEND": backend}),
+                    patch.dict(os.environ, {
+                        "CHAT_BACKEND": backend,
+                        "CHAINLIT_URL": "https://ui.example.com",
+                        "CHAINLIT_AUTH_SECRET": "offline-upload-startup-secret-32-bytes",
+                    }),
                     patch.object(chainlit_config.features.spontaneous_file_upload, "enabled", not expected),
                     patch.object(bootstrap, "_configure_embed_environment"),
                     patch.object(bootstrap, "_configure_auth_environment"),

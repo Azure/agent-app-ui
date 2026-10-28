@@ -272,6 +272,7 @@ with TestClient(main.app) as client:
     assert response.status_code == {401 if active else 503}, response.status_code
 """, environment={
                     "CHAT_BACKEND": "",
+                    "CHAINLIT_URL": "https://ui.example.com",
                     "HOSTED_AGENT_BASE_URL": "https://agent.example.com/protocol",
                     "HOSTED_AGENT_RESOURCE_SCOPE": "api://hosted-agent/.default",
                     "OAUTH_AZURE_AD_CLIENT_ID": "test-client",
