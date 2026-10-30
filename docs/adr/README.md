@@ -20,6 +20,6 @@ The exception-registry technical validation decision is platform ADR-0020,
 `Azure/agent-landing-zone`. It replaces mandatory independent approval and
 registry-only policy blocking, while retaining protected evaluator integrity
 and exact-source passing evidence. See
-[Python development](../python-development.md#protected-quality-checks)
+[UI quality checks](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/application-testing/#ui)
 for the current implementation. Repository settings and live required-check
 enforcement need separate evidence.

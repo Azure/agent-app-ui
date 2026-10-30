@@ -40,10 +40,10 @@ overlapping general-purpose agents.
   authentication, accessibility, Python, testing, and operations references.
 - `architecture-decision` compares alternatives and records significant
   decisions under `docs/adr/`.
-- `documentation-consistency` coordinates local component guidance with the
+- `documentation-consistency` coordinates local internal engineering rules with the
   [central product documentation](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/).
-  Its source is `Azure/AI-Landing-Zones` on `main` under
-  `docs/agent-landing-zone`, not the legacy platform `docs` branch.
+  All application user, operator, and developer manuals belong in
+  `Azure/AI-Landing-Zones` on `main` under `docs/agent-landing-zone`.
 - `component-release` applies this repository's `develop` to `main`,
   `VERSION`, changelog, and tag rules.
 

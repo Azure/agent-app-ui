@@ -34,13 +34,16 @@ applicable. -->
 
 - [ ] None
 - [ ] [Agent Landing Zone](https://github.com/Azure/agent-landing-zone)
+- [ ] [Central documentation](https://github.com/Azure/AI-Landing-Zones)
 - [ ] [agent-app-orchestrator](https://github.com/Azure/agent-app-orchestrator)
 - [ ] [agent-app-ingestion](https://github.com/Azure/agent-app-ingestion)
 - [ ] Other: [link]
 
 ## Documentation
 
-<!-- Link updated local or central documentation, or explain why none applies. -->
+<!-- Link application manuals in Azure/AI-Landing-Zones on main under
+docs/agent-landing-zone. Link affected internal policies or contributor guidance
+locally. Explain why no documentation update applies when appropriate. -->
 
 ## Residual risks
 

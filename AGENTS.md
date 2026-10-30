@@ -28,8 +28,12 @@ ingestion service, persists Chainlit feedback and thread data through the
 configured data layer, and provides opt-in secure portal embedding.
 
 This repository is a runtime component of the wider `Azure/agent-landing-zone` solution.
-The platform repository owns the canonical architecture, infrastructure, and
-published product documentation. Preserve compatibility with the deployed
+The platform repository owns foundation architecture and infrastructure.
+All application user, operator, and developer manuals are published from
+[`Azure/AI-Landing-Zones`, `main`, `docs/agent-landing-zone`](https://github.com/Azure/AI-Landing-Zones/tree/main/docs/agent-landing-zone)
+at https://azure.github.io/AI-Landing-Zones/agent-landing-zone/.
+Internal contributor rules, governance, policies, ADRs, contracts, and release
+metadata stay in this repository. Preserve compatibility with the deployed
 orchestrator, ingestion, App Configuration, identity, and storage contracts.
 
 ## Repository boundaries
@@ -70,12 +74,14 @@ The legacy names below remain supported, forwarding to those owners:
 - `connectors/`: focused Azure and external service adapters.
 - `telemetry.py`: logging and instrumentation.
 - `public/`, `.chainlit/`, `chainlit.config.yaml`, `chainlit.md`: theming,
-  presentation, frontend assets, and Chainlit configuration.
+  presentation, frontend assets, and Chainlit configuration. `chainlit.md`
+  is an intentional runtime asset even when empty, not a product manual.
 - `scripts/`, `azure.yaml`, `Dockerfile`, `infra/`: deployment and lifecycle
   assets.
 - `tests/`: `unittest` behavior and security regression coverage.
 - `.quality/`, `.github/scripts/check-quality.py`: protected-base
-  lint/type/import/exception policy; see `docs/python-development.md`.
+  lint/type/import/exception policy. See the central
+  [UI quality checks](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/application-testing/#ui).
 - `.github/copilot-instructions.md`: branching, versioning, changelog, release,
   and documentation rules.
 - `.github/agents/`: active GitHub Copilot engineering roles.
@@ -124,7 +130,7 @@ orchestrator.
   and document-level authorization.
 - Origin checks are browser controls, not authentication or network access
   boundaries. Do not weaken the security contract documented in
-  `docs/copilot-embedding.md`.
+  the central [embedding guide](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/embed-chat/).
 - Use explicit, typed payloads for orchestrator and ingestion requests.
   Timeouts, retries, status handling, and cancellation must remain bounded and
   observable.
@@ -188,7 +194,8 @@ orchestrator.
   Do not grow the baseline or weaken policy to turn the bootstrap PR green.
 - Exception/dynamic-import evidence comes from the separate standard-unittest
   runner `.github/scripts/run-unittest.py`; pass its same-run report through
-  `--test-evidence`. See `docs/python-development.md` for `QUALITY_RUN_ID`,
+  `--test-evidence`. See the central
+  [UI quality checks](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/application-testing/#ui) for `QUALITY_RUN_ID`,
   exact-source receipt requirements and protected aggregation.
 - The quality evaluator uses a separate environment built from protected
   requirements/tool pins and does not install candidate application code.

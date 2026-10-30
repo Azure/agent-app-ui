@@ -68,7 +68,9 @@ that prove the decision remains valid.
 
 ## Documentation impact
 
-List affected local and central Agent Landing Zone documentation.
+List affected application manuals in `Azure/AI-Landing-Zones` on `main` under
+`docs/agent-landing-zone`. List affected internal policies and contributor
+guidance in this repository.
 
 ## Review trigger
 
