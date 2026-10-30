@@ -1,9 +1,13 @@
 # Changelog
 
-## [Unreleased]
+## [v3.4.1] - 2026-10-30
 
 ### Changed
 
+- **Release changelog lifecycle.** Keep `Unreleased` only on `develop`, never
+  on a release branch or `main`, matching the ingestion and orchestrator
+  release process. Restore an empty development section separately after
+  the release is merged.
 - **Reviewed dependency maintenance.** Require Pydantic 2.13.5 or newer within
   version 2, retaining the adopted Chainlit and patched authentication stack.
 - **Grouped Actions maintenance.** Check GitHub Actions weekly against
