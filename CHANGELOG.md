@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Validated runtime dependency maintenance.** Adopt Azure App Configuration
+  SDK 1.10.0 and Uvicorn 0.54.0, and require Pydantic 2.14.1 or newer within
+  version 2. Preserve authentication, container and protected quality contracts.
+
 ## [v3.4.1] - 2026-10-30
 
 ### Changed
