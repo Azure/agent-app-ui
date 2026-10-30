@@ -4,6 +4,11 @@
 
 ### Changed
 
+- **Reviewed dependency maintenance.** Require Pydantic 2.13.5 or newer within
+  version 2, retaining the adopted Chainlit and patched authentication stack.
+- **Grouped Actions maintenance.** Check GitHub Actions weekly against
+  `develop`, grouped with a seven-day cooldown, without adding a duplicate
+  update stream against `main`.
 - **Shared repository protection standard.** Require pull requests and passing
   quality, behavior and container checks without mandatory second-person review.
   Preserve protected-base integrity, immutable Actions references and narrowly
