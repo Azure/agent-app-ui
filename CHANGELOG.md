@@ -22,6 +22,9 @@
 
 ### Fixed
 
+- **Dependabot configuration syntax.** Separate the GitHub Actions update
+  entry from the preceding package labels so all three update streams remain
+  valid YAML and dependency maintenance continues to run.
 - **Security dependency updates.** Upgrade aiohttp and the setuptools build
   backend to patched releases. Require PyJWT 2.15 or newer within version 2
   so new installations cannot select the reported vulnerable token library.
