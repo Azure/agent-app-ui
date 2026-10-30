@@ -1,5 +1,32 @@
 # Changelog
 
+## [v3.4.1] - 2026-10-30
+
+### Changed
+
+- **Release changelog lifecycle.** Keep `Unreleased` only on `develop`, never
+  on a release branch or `main`, matching the ingestion and orchestrator
+  release process. Restore an empty development section separately after
+  the release is merged.
+- **Reviewed dependency maintenance.** Require Pydantic 2.13.5 or newer within
+  version 2, retaining the adopted Chainlit and patched authentication stack.
+- **Grouped Actions maintenance.** Check GitHub Actions weekly against
+  `develop`, grouped with a seven-day cooldown, without adding a duplicate
+  update stream against `main`.
+- **Shared repository protection standard.** Require pull requests and passing
+  quality, behavior and container checks without mandatory second-person review.
+  Preserve protected-base integrity, immutable Actions references and narrowly
+  scoped privileged workflow authorization.
+
+### Fixed
+
+- **Security dependency updates.** Upgrade aiohttp and the setuptools build
+  backend to patched releases. Require PyJWT 2.15 or newer within version 2
+  so new installations cannot select the reported vulnerable token library.
+- **Immutable GitHub Actions references.** Pin the remaining workflow actions
+  to verified full-length commit SHAs without changing their selected versions,
+  and require agents to preserve SHA pinning when editing or regenerating CI.
+
 ## [v3.4.0] - 2026-10-28
 
 ### Added

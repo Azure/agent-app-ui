@@ -9,8 +9,9 @@ description: "Prepares a verifiable Agent Landing Zone UI release. Use for relea
 2. Choose a semantic version from the shipped change set. Do not change
    `VERSION` on `develop` merely to anticipate a release.
 3. Set root `VERSION` to `X.Y.Z` without a `v` prefix.
-4. Keep one empty `## [Unreleased]` section at the top of `CHANGELOG.md` and
-   convert the accumulated entries into `## [vX.Y.Z] - YYYY-MM-DD`.
+4. Convert the accumulated `## [Unreleased]` section into
+   `## [vX.Y.Z] - YYYY-MM-DD`. Do not retain `Unreleased` on a release branch
+   or `main`.
 5. Verify the branch name, `VERSION`, changelog heading, proposed tag
    `vX.Y.Z`, and release title describe the same version.
 6. Run the complete existing test suite and any auth, accessibility,
@@ -20,7 +21,10 @@ description: "Prepares a verifiable Agent Landing Zone UI release. Use for relea
 9. After merge and explicit human approval, create the tag and release using
    the validated commit. Publishing images or deploying production requires
    separate explicit approval.
-10. Record the release artifacts, evidence, compatibility assumptions, and
+10. After merge, synchronize the released version and changelog to `develop`
+    through a separate feature pull request. Restore exactly one empty
+    `## [Unreleased]` section on `develop` only, without bypassing protection.
+11. Record the release artifacts, evidence, compatibility assumptions, and
     rollback path in the handoff.
 
 Do not introduce unrelated feature work on a release branch. Never include
