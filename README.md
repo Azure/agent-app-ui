@@ -17,47 +17,29 @@ description: Chainlit web UI for Agent Landing Zone, delivering conversational a
 
 The [Agent Landing Zone](https://github.com/Azure/agent-landing-zone) web client
 uses [Chainlit](https://www.chainlit.io/) to stream agent responses, display
-citations, and collect feedback. The orchestrator agent runs on Microsoft
-Foundry Hosted Agents by default. Set `CHAT_BACKEND=orchestrator` explicitly
-to use the Container Apps backend. Hosted failures never trigger an automatic
-switch to that backend.
+citations, and collect feedback.
 
-## Set up and deploy
+## Documentation
 
-Start with the [central product documentation](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/):
+All application user, operator, and developer manuals live on the central site:
 
-- [Deploy the full stack](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/deploy-full-stack/).
-- [Configuration](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/configuration/).
-- [Hosted Agents and delegated authentication](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/hosted-agents/).
-- [Custom applications](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/build-your-own-app/).
-- [Operations](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/operations/)
-  and [troubleshooting](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/troubleshooting/).
+- [Application overview](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/application/).
+- [Sign-in and access](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/application-auth/).
+- [Conversations, files, and citations](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/conversations/).
+- [Embed chat in a portal](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/embed-chat/).
+- [Run the chat UI locally](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/local-development/#chat-ui).
+- [UI tests and quality checks](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/application-testing/#ui).
 
 The documentation source is
 [`Azure/AI-Landing-Zones`, `main`, `docs/agent-landing-zone`](https://github.com/Azure/AI-Landing-Zones/tree/main/docs/agent-landing-zone).
 This component does not provision the platform.
 
-Conversation attachments require the optional ingestion app.
-`DEPLOY_INGESTION_CONTAINER_APP=false` hides upload controls and rejects
-attachments. A missing setting preserves legacy eligibility. `true` preserves
-authentication and conversation checks. Invalid values fail configuration
-validation. There is no replacement native conversation upload path. See
-[ingestion selection](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/configuration/#ingestion-application-selection)
-for supported deployments.
+## Contributing and support
 
-## Component guides
-
-- [Python development](docs/python-development.md): local setup, module
-  ownership, backend contracts, staged assets, and validation commands.
-- [Chainlit Copilot embedding](docs/copilot-embedding.md): opt-in portal
-  integration, authentication, uploads, and session security.
-- [Engineering framework](docs/agentic-engineering.md): contributor guidance
-  for the repository's Copilot assets.
-- [Support](SUPPORT.md) and [security reporting](SECURITY.md).
+- [Contributor rules](AGENTS.md) and [engineering framework](docs/agentic-engineering.md).
 - [Contributing](https://github.com/Azure/agent-landing-zone/blob/main/CONTRIBUTING.md).
-
-For presentation changes, use `public/theme.json`, `public/custom.css`, and
-`.chainlit/config.toml`.
+- [Support](SUPPORT.md) and [security reporting](SECURITY.md).
+- [Code of conduct](CODE_OF_CONDUCT.md) and [license](LICENSE).
 
 ## Trademarks
 

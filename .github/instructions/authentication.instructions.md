@@ -18,5 +18,7 @@ applyTo: "app.py,main.py,auth_common.py,auth_oauth.py,entra_token.py,embed_auth.
 - Every security change requires negative tests for unauthorized,
   cross-principal, cross-session, malformed, missing, duplicate, expired, or
   disallowed input as applicable.
-- Keep `docs/copilot-embedding.md` synchronized with embedding security
-  behavior.
+- Keep the central [embedding guide](https://azure.github.io/AI-Landing-Zones/agent-landing-zone/embed-chat/)
+  synchronized with embedding security behavior. Its source is
+  `Azure/AI-Landing-Zones` on `main` under `docs/agent-landing-zone`.
+  Internal security policies and runtime ownership remain local.

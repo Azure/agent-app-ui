@@ -411,3 +411,18 @@ If instructions are ambiguous:
 
 * default to feature workflow using `develop`
 * do not assume a release unless explicitly requested
+
+---
+
+## Documentation Ownership
+
+All application user, operator, and developer manuals belong in
+[`Azure/AI-Landing-Zones`, `main`, `docs/agent-landing-zone`](https://github.com/Azure/AI-Landing-Zones/tree/main/docs/agent-landing-zone),
+published at https://azure.github.io/AI-Landing-Zones/agent-landing-zone/.
+Keep component READMEs concise and link to that site rather than maintaining
+local product guides or redirect-guide stubs.
+
+Keep internal contributor rules, governance, security policies, ADRs, contracts,
+and release metadata local. Preserve source examples and runtime assets,
+including `public/`, `.chainlit/`, `chainlit.md` even when empty, and `VERSION`.
+Do not treat runtime presentation files as product-manual destinations.
