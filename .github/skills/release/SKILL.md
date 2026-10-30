@@ -41,10 +41,10 @@ release pull request.
    deployments.
 3. Set root `VERSION` to exactly `X.Y.Z`, without a `v` prefix,
    comments, or surrounding text.
-4. Keep exactly one empty `## [Unreleased]` section at the top of
-   `CHANGELOG.md`. Move its accumulated entries into
-   `## [vX.Y.Z] - YYYY-MM-DD`, preserving applicable `Added`,
-   `Changed`, `Fixed`, and `Removed` categories.
+4. Convert the accumulated `## [Unreleased]` section in `CHANGELOG.md` into
+   `## [vX.Y.Z] - YYYY-MM-DD`, preserving applicable `Added`, `Changed`,
+   `Fixed`, and `Removed` categories. Do not retain `Unreleased` on the
+   release branch or `main`.
 5. Require exact agreement among:
    - branch: `release/X.Y.Z`;
    - `VERSION`: `X.Y.Z`;
@@ -88,6 +88,14 @@ tag and release title, target commit, validation evidence, sanitized notes, and
 the single action proposed. Approval for one action, version, or commit does
 not authorize another. Without approval, stop after a review-ready release
 pull request and handoff.
+
+## Restore develop after the release
+
+After the release is merged, synchronize the released `VERSION` and changelog
+back to `develop` through a separate feature pull request. Restore exactly one
+empty `## [Unreleased]` section above the released entry on `develop` only.
+Keep `main` and the release branch free of `Unreleased`; do not bypass branch
+protection for this synchronization.
 
 ## Roll back or reconcile
 
