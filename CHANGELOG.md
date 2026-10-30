@@ -11,6 +11,9 @@
 
 ### Fixed
 
+- **Security dependency updates.** Upgrade aiohttp and the setuptools build
+  backend to patched releases. Require PyJWT 2.15 or newer within version 2
+  so new installations cannot select the reported vulnerable token library.
 - **Immutable GitHub Actions references.** Pin the remaining workflow actions
   to verified full-length commit SHAs without changing their selected versions,
   and require agents to preserve SHA pinning when editing or regenerating CI.
