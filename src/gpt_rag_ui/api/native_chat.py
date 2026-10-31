@@ -153,6 +153,12 @@ async def on_start() -> None:
         f"**{row['title']}**\n\nDescreva o tema para iniciar o processo."
         if application == "workflow" else "**Conversar**"
     )).send()
+    if application == "conversational" and settings.private_uploads:
+        await cl.Message(content=(
+            "Anexos privados: TXT/MD, PDF, PNG/JPEG; até 3 arquivos de 64 KiB cada. "
+            "O conteúdo serializado do turno deve caber em 256 KiB. "
+            "Inclua uma mensagem de texto; anexos não são publicados no índice corporativo."
+        )).send()
     if settings.history:
         await cl.Message(content="Sessões salvas", actions=[
             cl.Action(name="native_history", payload={}, label="Abrir histórico"),

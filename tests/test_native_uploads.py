@@ -1,19 +1,24 @@
 """Native private input, session ownership and actual SDK content envelopes."""
 
 import base64
+import asyncio
 import importlib.util
 import json
 import os
 import tempfile
 import unittest
+import grpc
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 from agent_framework import AgentResponse, Content, Message
 from durabletask.client import TaskHubGrpcClient
+from durabletask.azuremanaged.client import DurableTaskSchedulerClient
 
-from gpt_rag_ui.clients.native_attachments import InlineAttachment, MAX_ATTACHMENT_BYTES
+from gpt_rag_ui.clients.native_attachments import (
+    InlineAttachment, MAX_ATTACHMENT_BYTES, MAX_INLINE_TURN_BYTES, validate_inline_turn,
+)
 from gpt_rag_ui.clients.native_durable import NativeDurableClient, BoundedRpc
 from gpt_rag_ui.clients import native_durable
 from gpt_rag_ui.clients.native_metadata import MemoryMetadata
@@ -67,6 +72,15 @@ class NativeAttachmentValidationTests(unittest.TestCase):
             with self.assertRaises(ConfigurationError):
                 load_native_settings(base_config(ENABLE_PRIVATE_ATTACHMENTS="true", APPLICATION_MODE="workflow"))
 
+    def test_native_serialized_turn_budget_counts_base64_and_json_text_expansion(self):
+        pdf = attachment("note.pdf", "application/pdf", b"%PDF-" + b"a" * (MAX_ATTACHMENT_BYTES - 5))
+        self.assertEqual(len(validate_inline_turn("describe", [pdf])), 1)
+        with self.assertRaises(ValueError):
+            validate_inline_turn("describe", [pdf, pdf, pdf])
+        with self.assertRaises(ValueError):
+            validate_inline_turn("describe", [attachment(data=b"\x00" * MAX_ATTACHMENT_BYTES)])
+        self.assertEqual(MAX_INLINE_TURN_BYTES, 256 * 1024)
+
     def test_rpc_deadline_uses_supported_grpc_interceptor(self):
         details = SimpleNamespace(
             method="/method", timeout=None, metadata=[], credentials=None, wait_for_ready=False, compression=None,
@@ -97,6 +111,25 @@ class NativeAttachmentValidationTests(unittest.TestCase):
         self.assertTrue(scheduler.call_args.kwargs["secure_channel"])
         self.assertEqual(scheduler.call_args.kwargs["taskhub"], "ui")
         self.assertIsInstance(scheduler.call_args.kwargs["interceptors"][0], BoundedRpc)
+
+    def test_actual_published_scheduler_constructor_accepts_explicit_managed_identity(self):
+        credential_type = native_durable.ManagedIdentityCredential
+        # Only the public gRPC transport factory is replaced. Both the Azure
+        # credential and official DTS/MAF client constructors are real.
+        with (
+            patch.dict(os.environ, {"AZURE_CLIENT_ID": OTHER}, clear=True),
+            grpc.insecure_channel("127.0.0.1:1") as channel,
+            patch("grpc.secure_channel", return_value=channel) as transport,
+            patch.object(native_durable, "ManagedIdentityCredential", wraps=credential_type) as identity,
+        ):
+            client = NativeDurableClient(settings())
+            try:
+                self.assertIsInstance(client.client, DurableTaskSchedulerClient)
+                self.assertIsInstance(client._credential, credential_type)
+                identity.assert_called_once_with(client_id=OTHER)
+                self.assertEqual(transport.call_args.args[0], "scheduler.example.invalid")
+            finally:
+                asyncio.run(client.aclose())
 
 
 class NativePrivateOwnerTests(unittest.IsolatedAsyncioTestCase):
@@ -134,6 +167,15 @@ class NativePrivateOwnerTests(unittest.IsolatedAsyncioTestCase):
             await disabled.converse(self.owner, self.row["id"], "test", [attachment()])
         self.durable.converse.assert_not_awaited()
 
+    async def test_invalid_batch_and_state_budget_fail_before_metadata_or_backend(self):
+        pdf = attachment("note.pdf", "application/pdf", b"%PDF-" + b"a" * (MAX_ATTACHMENT_BYTES - 5))
+        for files in ([attachment(), attachment("bad.pdf", "application/pdf", b"invalid")], [pdf, pdf, pdf]):
+            with self.subTest(count=len(files)), self.assertRaises(ValueError):
+                await self.service.converse(self.owner, self.row["id"], "describe", files)
+            self.assertEqual(await self.store.list(self.owner.owner, "attachment"), [])
+            self.durable.converse.assert_not_awaited()
+            self.assertFalse((await self.service.owned(self.owner, self.row["id"]))["busy"])
+
     async def test_actual_durable_agent_receives_native_content_not_lossy_text_only(self):
         client = NativeDurableClient(settings(), client=Mock(spec=TaskHubGrpcClient))
         agent = Mock()
@@ -166,6 +208,7 @@ class NativePrivateOwnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("data:application/pdf;base64,", payload)
         self.assertIn("data:image/png;base64,", payload)
         self.assertEqual(hub.signal_entity.call_count, 1)
+        self.assertLess(len(payload.encode("utf-8")), MAX_INLINE_TURN_BYTES)
 
     async def test_chainlit_private_path_requires_session_registry(self):
         from gpt_rag_ui.api.native_chat import read_session_attachments

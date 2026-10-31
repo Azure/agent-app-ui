@@ -52,7 +52,7 @@ class Config:
 def settings(**values):
     return replace(NativeSettings(
         host="container_apps", mode="both", scheduler_binding=BINDING,
-        agent_name="alz-conversation", workflow_name="alz-research-review",
+        agent_name="agent-lz-conversation", workflow_name="agent-lz-research-review",
         database_account="metadata", database="ui", token_audience="api://ui", tenant_id=TENANT,
     ), **values)
 
@@ -61,7 +61,7 @@ def base_config(**values):
     return Config({
         "ORCHESTRATION_HOST": "container_apps", "APPLICATION_MODE": "both",
         "DURABLE_TASK_SCHEDULER_CONNECTION_STRING": BINDING,
-        "DURABLE_AGENT_NAME": "alz-conversation", "DURABLE_WORKFLOW_NAME": "alz-research-review",
+        "DURABLE_AGENT_NAME": "agent-lz-conversation", "DURABLE_WORKFLOW_NAME": "agent-lz-research-review",
         "DATABASE_ACCOUNT_NAME": "metadata", "DATABASE_NAME": "ui",
         "NATIVE_UI_TOKEN_AUDIENCE": "api://ui", "OAUTH_AZURE_AD_TENANT_ID": TENANT, **values,
     })
@@ -135,7 +135,10 @@ class NativeConfigurationTests(unittest.TestCase):
             "host_address": "scheduler.example.invalid", "taskhub": "ui", "client_id": "",
         })
         for value in (
-            BINDING.replace("ManagedIdentity", "Key"), BINDING + ";Secret=bad",
+            BINDING.replace("ManagedIdentity", "Key"),
+            BINDING.replace("ManagedIdentity", "DefaultAzure"),
+            BINDING + ";Secret=bad", BINDING + ";SharedAccessKey=invalid",
+            BINDING + ";BearerToken=invalid",
             BINDING.replace("https://", "http://"), BINDING + ";TaskHub=duplicate",
             "Endpoint=https://scheduler.example.invalid;Authentication=ManagedIdentity",
         ):
@@ -217,7 +220,7 @@ class PublishedClientShapeTests(unittest.IsolatedAsyncioTestCase):
         hub = Mock(spec=TaskHubGrpcClient)
         hub.schedule_new_orchestration.return_value = "run-1"
         hub.get_orchestration_state.return_value = SimpleNamespace(
-            name="dafx-v2-alz-research-review", runtime_status=OrchestrationStatus.RUNNING,
+            name="dafx-v2-agent-lz-research-review", runtime_status=OrchestrationStatus.RUNNING,
             serialized_custom_status=json.dumps({"pending_requests": {"review-1": {
                 "request_id": "review-1", "source_executor_id": "human-review",
                 "data": {"topic": "test", "draft": "draft"}, "response_type": "ReviewDecision",
@@ -226,7 +229,7 @@ class PublishedClientShapeTests(unittest.IsolatedAsyncioTestCase):
         client = NativeDurableClient(settings(), client=hub)
         self.assertEqual(await client.start({"topic": "test"}, "run-1"), "run-1")
         hub.schedule_new_orchestration.assert_called_once()
-        self.assertEqual(hub.schedule_new_orchestration.call_args.args, ("dafx-v2-alz-research-review",))
+        self.assertEqual(hub.schedule_new_orchestration.call_args.args, ("dafx-v2-agent-lz-research-review",))
         self.assertEqual(hub.schedule_new_orchestration.call_args.kwargs["instance_id"], "run-1")
         progress = await client.progress("run-1")
         self.assertEqual(progress["pending"][0]["request_id"], "review-1")
@@ -252,7 +255,7 @@ class PublishedClientShapeTests(unittest.IsolatedAsyncioTestCase):
     async def test_durable_completion_uses_native_output_codec(self):
         hub = Mock(spec=TaskHubGrpcClient)
         state = SimpleNamespace(
-            name="dafx-v2-alz-research-review", runtime_status=OrchestrationStatus.COMPLETED,
+            name="dafx-v2-agent-lz-research-review", runtime_status=OrchestrationStatus.COMPLETED,
             serialized_output='[{"status":"rejected","draft":"draft"}]',
             serialized_custom_status="{}",
         )

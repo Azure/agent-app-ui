@@ -111,7 +111,7 @@ class NativePresentationTests(unittest.IsolatedAsyncioTestCase):
             "review_comment": "", "configuration_revision": "revision-1",
         }
         state = SimpleNamespace(
-            name="dafx-v2-alz-research-review", runtime_status=OrchestrationStatus.COMPLETED,
+            name="dafx-v2-agent-lz-research-review", runtime_status=OrchestrationStatus.COMPLETED,
             serialized_output=json.dumps([result]), serialized_custom_status="{}",
         )
         hub.get_orchestration_state.return_value = state

@@ -2,13 +2,18 @@
 
 import base64
 import binascii
+import json
 from pathlib import PurePath
 
-from agent_framework import Content
+from agent_framework import Content, Message
 from pydantic import BaseModel, ConfigDict, Field
 
-MAX_ATTACHMENT_BYTES = 1024 * 1024
+MAX_ATTACHMENT_BYTES = 64 * 1024
 MAX_ATTACHMENTS = 3
+# The published DTS worker has a 1 MiB serialized-state budget. Leave room for
+# request/session framing, response delivery and native history. This is input
+# admission, not a replacement for the SDK's state-capacity/retention policies.
+MAX_INLINE_TURN_BYTES = 256 * 1024
 ATTACHMENT_TYPES = {
     ".txt": "text/plain", ".md": "text/markdown", ".pdf": "application/pdf",
     ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -33,7 +38,7 @@ class InlineAttachment(BaseModel):
         except (ValueError, binascii.Error) as exc:
             raise ValueError("Attachment must contain valid base64.") from exc
         if not data or len(data) > MAX_ATTACHMENT_BYTES:
-            raise ValueError("Each attachment must contain 1–1048576 bytes.")
+            raise ValueError("Each attachment must contain 1–65536 bytes.")
         if self.content_type.startswith("text/"):
             data.decode("utf-8")
         elif self.content_type == "application/pdf" and not data.startswith(b"%PDF-"):
@@ -64,3 +69,25 @@ class InlineAttachment(BaseModel):
                 "openai": {"content_type": kind}, "openai_content_type": kind, "filename": self.name,
             },
         )
+
+
+def validate_inline_turn(text: str, attachments: list[InlineAttachment]) -> list[bytes]:
+    """Validate the whole batch and both native content envelopes before writes."""
+    if len(attachments) > MAX_ATTACHMENTS:
+        raise ValueError("At most three private attachments per turn.")
+    decoded = [attachment.decode() for attachment in attachments]
+    if not attachments:
+        return decoded
+    hosted = [{"role": "user", "content": [
+        {"type": "input_text", "text": text},
+        *(attachment.hosted_content() for attachment in attachments),
+    ]}]
+    durable = Message("user", [
+        Content.from_text(text), *(attachment.durable_content() for attachment in attachments),
+    ]).to_dict()
+    # Include UTF-8/JSON escaping, file names/MIME, data URI expansion and the
+    # core content metadata. Raw decoded bytes alone are not a native state size.
+    size = max(len(json.dumps(value, ensure_ascii=True).encode("utf-8")) for value in (hosted, durable))
+    if size > MAX_INLINE_TURN_BYTES:
+        raise ValueError("Private inline turn exceeds 262144 serialized bytes; use fewer or smaller files.")
+    return decoded

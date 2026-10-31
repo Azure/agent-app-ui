@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from gpt_rag_ui.auth.auth_common import normalize_guid, is_user_authorized
 from gpt_rag_ui.clients.native_hosted import NativeHostedClient, hosted_pending, hosted_reply
 from gpt_rag_ui.clients.native_metadata import MetadataConflict, MetadataStore
-from gpt_rag_ui.clients.native_attachments import InlineAttachment, MAX_ATTACHMENTS
+from gpt_rag_ui.clients.native_attachments import InlineAttachment, validate_inline_turn
 from gpt_rag_ui.config.appconfig import AppConfigClient
 from gpt_rag_ui.config.native import NativeSettings, load_native_settings
 
@@ -170,10 +170,8 @@ class NativeService:
         attachments = attachments or []
         if attachments and not (await self.current(principal)).private_uploads:
             raise NativeUnavailable("Private attachments are disabled.")
-        if len(attachments) > MAX_ATTACHMENTS:
-            raise ValueError("At most three private attachments per turn.")
-        for attachment in attachments:
-            data = attachment.decode()
+        decoded = validate_inline_turn(text, attachments)
+        for attachment, data in zip(attachments, decoded, strict=True):
             await self.metadata.create({
                 "id": "attachment-" + str(uuid.uuid4()), "kind": "attachment",
                 "principal_id": principal.owner, "session_id": id,
