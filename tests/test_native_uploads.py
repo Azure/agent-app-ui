@@ -149,6 +149,24 @@ class NativePrivateOwnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(native.contents[1].uri.startswith("data:application/pdf;base64,"))
         self.assertEqual(len(args["context_message_ids"]), 1)
 
+    async def test_published_durable_agent_serializes_pdf_and_image_at_scheduler_boundary(self):
+        class SchedulerBoundary(RuntimeError):
+            pass
+
+        hub = Mock(spec=TaskHubGrpcClient)
+        hub.signal_entity.side_effect = SchedulerBoundary()
+        client = NativeDurableClient(settings(), client=hub)
+        # No mock agent or SDK executor: stop only at the scheduler transport.
+        with self.assertRaises(SchedulerBoundary):
+            await client.converse("fixture", "describe", options={}, attachments=[
+                attachment("test.pdf", "application/pdf", b"%PDF-test"),
+                attachment("test.png", "image/png", b"\x89PNG\r\n\x1a\n"),
+            ])
+        payload = json.dumps(hub.signal_entity.call_args.args[2])
+        self.assertIn("data:application/pdf;base64,", payload)
+        self.assertIn("data:image/png;base64,", payload)
+        self.assertEqual(hub.signal_entity.call_count, 1)
+
     async def test_chainlit_private_path_requires_session_registry(self):
         from gpt_rag_ui.api.native_chat import read_session_attachments
         with tempfile.TemporaryDirectory() as directory:
