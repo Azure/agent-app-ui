@@ -96,7 +96,7 @@ def register_native_routes(app: FastAPI, service: NativeService) -> None:
 
     @router.post("/sessions/{id}/turns")
     async def turn(id: str, body: Turn, user: User) -> dict[str, Any]:
-        return {"response": await call(service.converse(user, id, body.text, body.attachments))}
+        return await call(service.converse(user, id, body.text, body.attachments))
 
     @router.post("/sessions/{id}/start", status_code=202)
     async def start(id: str, body: ResearchReviewStart, user: User) -> dict[str, Any]:

@@ -191,16 +191,15 @@ async def handle_message(message: cl.Message) -> None:
             else:
                 await render_progress(id, await service.start(user, id, ResearchReviewStart(topic=message.content)))
         else:
-            response = await service.converse(user, id, message.content, attachments)
-            content = await display_output(id, response)
+            turn = await service.converse(user, id, message.content, attachments)
+            content = await display_output(id, turn["response"])
             if not content:
                 raise NativeUnavailable("O runtime não retornou texto de conversa.")
             actions = []
             if (await service.current(user)).feedback:
-                row = await service.owned(user, id)
                 actions = [cl.Action(
                     name="native_feedback", label=label,
-                    payload={"id": id, "rating": rating, "native_ref": row["native_id"]},
+                    payload={"id": id, "rating": rating, "native_ref": turn["native_ref"]},
                 ) for rating, label in ((1, "Útil"), (-1, "Não útil"))]
             await cl.Message(content=content, actions=actions).send()
     except (DelegationError, HostedAgentAuthenticationError) as exc:
