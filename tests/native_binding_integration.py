@@ -2,8 +2,9 @@
 
 Set NATIVE_CONTRACT_ALZ_ROOT, NATIVE_CONTRACT_RUNTIME_ROOT and
 NATIVE_CONTRACT_RUNTIME_PYTHON to the coordinated checkouts and published-wheel
-runtime environment. No source extraction, string rewriting, model or Azure I/O.
-Unconfigured component-only CI explicitly skips this cross-repository gate.
+runtime environment. Run explicitly with python tests/native_binding_integration.py.
+No source extraction, string rewriting, model or Azure I/O. Missing inputs fail;
+the component-only installed suite must not discover a skipped integration gate.
 """
 
 import asyncio
@@ -109,8 +110,6 @@ class NativeBindingIntegrationTests(unittest.TestCase):
             "NATIVE_CONTRACT_RUNTIME_PYTHON",
         )
         paths = [os.environ.get(key, "") for key in keys]
-        if not any(paths):
-            self.skipTest("Cross-repository gate requires all NATIVE_CONTRACT_* paths.")
         self.assertTrue(all(paths), "Partial cross-repository configuration is not a passing gate.")
         alz, runtime, python = map(Path, paths)
         source = alz / "config" / "deployment" / "native.py"
