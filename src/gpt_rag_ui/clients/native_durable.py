@@ -50,7 +50,11 @@ class BoundedRpc(grpc.UnaryUnaryClientInterceptor):
 
 
 def scheduler_options(binding: str) -> dict[str, str]:
-    """Parse only the nonsecret MI binding; endpoints come from real outputs."""
+    """Parse the deployment MI binding, never an implicit local credential chain.
+
+    The Python DTS SDK accepts an explicit TokenCredential, not this string.
+    The ALZ producer and worker must use the same ManagedIdentity contract.
+    """
     fields: dict[str, str] = {}
     for part in binding.rstrip(";").split(";"):
         key, separator, value = part.partition("=")

@@ -787,6 +787,8 @@ def _create_chainlit_app(
         if native_settings is not None:
             from gpt_rag_ui.clients.native_attachments import ATTACHMENT_TYPES, MAX_ATTACHMENTS
             upload = chainlit_config.features.spontaneous_file_upload
+            # Chainlit's picker has an integer-MiB setting. The server enforces
+            # the finer 64 KiB/file and 256 KiB serialized native-turn limits.
             upload.max_size_mb = 1
             upload.max_files = MAX_ATTACHMENTS
             upload.accept = sorted(set(ATTACHMENT_TYPES.values()))

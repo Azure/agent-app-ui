@@ -23,6 +23,21 @@
   host/publication changes. Native composition does not register the classic
   history, feedback or continuity-panel path. Existing deployments remain
   unchanged when `ORCHESTRATION_HOST` is absent; native state is not migrated.
+- **First native registration identities.** Align component fixtures and SDK
+  workflow addresses with `agent-lz-conversation` and
+  `agent-lz-research-review`; no released native session migration is needed.
+
+### Fixed
+
+- **Durable deployment credential contract regression gate.** Verify the actual
+  ALZ scheduler binding through both native consumers and the published DTS
+  constructors in coordinated checkout tests. Require `ManagedIdentity` and an
+  explicit managed-identity credential for deployment, never a secret-bearing
+  binding or an implicit local `DefaultAzure` chain.
+- **Private inline state-size admission.** Limit native input to three 64 KiB
+  files and 256 KiB serialized content per turn, including base64 and JSON
+  expansion. Validate the entire batch before metadata writes or submission;
+  preserve the published SDK's 1 MiB DTS state-capacity policy.
 
 ## [v3.4.1] - 2026-10-30
 
