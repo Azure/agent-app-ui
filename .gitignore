@@ -6,6 +6,7 @@ temp/
 local.settings.json
 .python_packages/
 .venv/
+.venv-native/
 .venv_temp/
 .azure
 .azure/

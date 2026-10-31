@@ -491,7 +491,7 @@
       "module_id": "app",
       "symbol": "get_auth_info",
       "review": "AI technical assessment in .quality/exception-technical-review.json; eligible for source-bound technical validation, not independent approval.",
-      "handler_fingerprint": "948d18a580590888e6465e3fe3853f32edca15bc41740dce7b1d358f9013e629",
+      "handler_fingerprint": "ec3948c52a72f4770b13200d6e265bdbf10e7cd9c2f14f3c7cc6705286afebf5",
       "caught_types": [
         "Exception"
       ],

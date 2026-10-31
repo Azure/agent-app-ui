@@ -1,5 +1,6 @@
 import os
 import logging
+import threading
 
 from typing import Dict, Any, Protocol
 from azure.identity import ChainedTokenCredential, ManagedIdentityCredential, AzureCliCredential
@@ -21,6 +22,32 @@ APP_LABEL = 'agent-app-ui'
 LEGACY_APP_LABEL = 'gpt-rag-ui'
 
 ATTACHMENTS_UNAVAILABLE_MESSAGE = "Attachments are unavailable in this deployment."
+
+# Only UI consumers, including protected downloads. SQL/MCP tools stay runtime-owned.
+NATIVE_UI_KEYS = (
+    "ORCHESTRATION_HOST", "APPLICATION_MODE", "CHAT_BACKEND",
+    "HOSTED_AGENT_BASE_URL", "HOSTED_WORKFLOW_BASE_URL", "HOSTED_AGENT_RESOURCE_SCOPE",
+    "HOSTED_AGENT_AUTH_MODE", "DURABLE_TASK_SCHEDULER_CONNECTION_STRING",
+    "DURABLE_AGENT_NAME", "DURABLE_WORKFLOW_NAME", "WORKFLOW_DISPLAY_NAME",
+    "ENABLE_CHAT_HISTORY", "ENABLE_USER_FEEDBACK", "ENABLE_PRIVATE_ATTACHMENTS",
+    "NATIVE_UI_METADATA_CONTAINER", "NATIVE_UI_TOKEN_AUDIENCE",
+    "DATABASE_ACCOUNT_NAME", "DATABASE_NAME", "STORAGE_ACCOUNT_NAME",
+    "CONVERSATION_DOCUMENTS_STORAGE_CONTAINER", "DOCUMENTS_STORAGE_CONTAINER",
+    "DOCUMENTS_IMAGES_STORAGE_CONTAINER", "CITATION_SHARED_DOWNLOAD_CONTAINERS",
+    "SEARCH_SERVICE_QUERY_ENDPOINT", "SEARCH_RAG_INDEX_NAME", "SEARCH_API_VERSION",
+    "CHAINLIT_AUTH_SECRET", "CHAINLIT_URL",
+    "ALLOW_ANONYMOUS", "CLIENT_ID", "AZURE_TENANT_ID",
+    "ALLOWED_USER_NAMES", "ALLOWED_USER_PRINCIPALS",
+    "OAUTH_AZURE_AD_CLIENT_ID", "OAUTH_AZURE_AD_TENANT_ID", "OAUTH_AZURE_AD_CLIENT_SECRET",
+    "authClientSecret", "OAUTH_AZURE_AD_SCOPES", "OAUTH_AZURE_AD_ENABLE_SINGLE_TENANT",
+    "CHAINLIT_COPILOT_ENABLED", "CHAINLIT_ALLOWED_ORIGINS", "CHAINLIT_COPILOT_AUTH_MODE",
+    "CHAINLIT_COPILOT_ENTRA_TENANT_ID", "CHAINLIT_COPILOT_ENTRA_AUDIENCE",
+    "CHAINLIT_COPILOT_ENTRA_REQUIRED_SCOPE", "CHAINLIT_COPILOT_SESSION_TTL_SECONDS",
+    "CHAINLIT_COPILOT_MAX_SESSIONS", "CHAINLIT_COPILOT_BOOTSTRAP_RATE_LIMIT_PER_MINUTE",
+    "CHAINLIT_COOKIE_SAMESITE", "CHAINLIT_ROOT_PATH",
+    "APPLICATIONINSIGHTS_CONNECTION_STRING", "SHOW_RELEASE_FOOTER", "RELEASE",
+    "HOSTED_AGENT_CONTINUITY_ENABLED", "DEPLOY_ADMINISTRATIVE_PANEL",
+)
 
 
 class IngestionUploadConfig(Protocol):
@@ -62,6 +89,8 @@ class AppConfigClient:
         self.client_id = os.environ.get('AZURE_CLIENT_ID')
 
         self.connected: bool = False
+        self.native = bool(os.environ.get("ORCHESTRATION_HOST"))
+        self._refresh_lock = threading.Lock()
 
         endpoint = os.getenv("APP_CONFIG_ENDPOINT")
 
@@ -90,6 +119,24 @@ class AppConfigClient:
         logger = logging.getLogger("gpt_rag_ui.appconfig")
 
         try:
+            # Discover the native deployment using the canonical label, before any
+            # wildcard/KV load. Never resolve unrelated runtime secret references.
+            probe = load(
+                selects=[SettingSelector(label_filter=BASE_LABEL, key_filter=k)
+                         for k in ("ORCHESTRATION_HOST", "APPLICATION_MODE")],
+                endpoint=endpoint, credential=self.credential,
+            )
+            self.native = self.native or bool(probe.get("ORCHESTRATION_HOST"))
+            if self.native:
+                self.client = load(
+                    selects=[SettingSelector(label_filter=BASE_LABEL, key_filter=k) for k in NATIVE_UI_KEYS],
+                    endpoint=endpoint, credential=self.credential,
+                    refresh_on=[(k, BASE_LABEL) for k in NATIVE_UI_KEYS],
+                    refresh_interval=30,
+                    key_vault_options=AzureAppConfigurationKeyVaultOptions(credential=self.credential),
+                )
+                self.connected = True
+                return
             logger.info(
                 "Loading Azure App Configuration keys using labels: 'agent-app-ui', 'gpt-rag-ui' (legacy), 'agent-lz', and <no label>"
             )
@@ -101,6 +148,8 @@ class AppConfigClient:
             )
             self.connected = True
         except (ClientAuthenticationError, AzureError) as e:
+            if self.native:
+                raise ConfigurationError("Native UI App Configuration is unavailable.") from e
             # Most common local dev issue: not logged in / no managed identity.
             logger.warning(
                 "Azure App Configuration unavailable (auth/network). Running with env vars only. "
@@ -109,6 +158,8 @@ class AppConfigClient:
             )
             self.client = {}
         except ValueError as e:
+            if self.native:
+                raise ConfigurationError("Native UI App Configuration is invalid.") from e
             # Fallback: try connection string if provided, otherwise keep env-only.
             logger.warning(
                 "Unable to connect to Azure App Configuration endpoint; trying connection string (if set). Error: %s",
@@ -128,6 +179,12 @@ class AppConfigClient:
                 )
                 self.client = {}
 
+    def refresh(self) -> None:
+        """Official cached refresh; callers offload synchronous provider I/O."""
+        refresh = getattr(self.client, "refresh", None)
+        if self.native and callable(refresh):
+            with self._refresh_lock:
+                refresh()
 
     def get(self, key: str, default: Any = None, type: type = str) -> Any:
         return self.get_value(key, default=default, allow_none=False, type=type)

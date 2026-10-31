@@ -20,6 +20,11 @@ def register_callbacks() -> None:
         from gpt_rag_ui.api.oauth import register_oauth_callback
 
         register_oauth_callback()
+    if getattr(chat, "NATIVE_SETTINGS", None) is not None:
+        from gpt_rag_ui.api.native_chat import register
+        register(chat.get_auth_info)
+        _registered = True
+        return
     if chat.OAUTH_CONFIGURED or chat.COPILOT_ENABLED:
         if chat.CHAT_BACKEND == "orchestrator":
             from gpt_rag_ui.api.history import register_data_layer

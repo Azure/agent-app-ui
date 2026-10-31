@@ -2,11 +2,27 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Explicit native conversational and process UI.** Add authenticated Chainlit
+  and FastAPI presentation routes over the official Hosted Responses and
+  standalone Durable Extension clients. Bind native selectors and human replies
+  to authenticated owners; reject stale, duplicate and non-pending actions.
+- **Conditional native product metadata and private input.** Persist owner/run
+  mappings and feature-gated history references, feedback and attachment
+  descriptors separately from native checkpoints. Send bounded conversational
+  attachments through native content inputs without corporate ingestion.
+
 ### Changed
 
 - **Validated runtime dependency maintenance.** Adopt Azure App Configuration
   SDK 1.10.0 and Uvicorn 0.54.0, and require Pydantic 2.14.1 or newer within
   version 2. Preserve authentication, container and protected quality contracts.
+- **Native App Configuration scope.** Load explicit UI keys only under
+  `agent-lz`, use official cached refresh, and require redeployment for structural
+  host/publication changes. Native composition does not register the classic
+  history, feedback or continuity-panel path. Existing deployments remain
+  unchanged when `ORCHESTRATION_HOST` is absent; native state is not migrated.
 
 ## [v3.4.1] - 2026-10-30
 
