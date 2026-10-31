@@ -2,11 +2,42 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Explicit native conversational and process UI.** Add authenticated Chainlit
+  and FastAPI presentation routes over the official Hosted Responses and
+  standalone Durable Extension clients. Bind native selectors and human replies
+  to authenticated owners; reject stale, duplicate and non-pending actions.
+- **Conditional native product metadata and private input.** Persist owner/run
+  mappings and feature-gated history references, feedback and attachment
+  descriptors separately from native checkpoints. Send bounded conversational
+  attachments through native content inputs without corporate ingestion.
+
 ### Changed
 
 - **Validated runtime dependency maintenance.** Adopt Azure App Configuration
   SDK 1.10.0 and Uvicorn 0.54.0, and require Pydantic 2.14.1 or newer within
   version 2. Preserve authentication, container and protected quality contracts.
+- **Native App Configuration scope.** Load explicit UI keys only under
+  `agent-lz`, use official cached refresh, and require redeployment for structural
+  host/publication changes. Native composition does not register the classic
+  history, feedback or continuity-panel path. Existing deployments remain
+  unchanged when `ORCHESTRATION_HOST` is absent; native state is not migrated.
+- **First native registration identities.** Align component fixtures and SDK
+  workflow addresses with `agent-lz-conversation` and
+  `agent-lz-research-review`; no released native session migration is needed.
+
+### Fixed
+
+- **Durable deployment credential contract regression gate.** Verify the actual
+  ALZ scheduler binding through both native consumers and the published DTS
+  constructors in coordinated checkout tests. Require `ManagedIdentity` and an
+  explicit managed-identity credential for deployment, never a secret-bearing
+  binding or an implicit local `DefaultAzure` chain.
+- **Private inline state-size admission.** Limit native input to three 64 KiB
+  files and 256 KiB serialized content per turn, including base64 and JSON
+  expansion. Validate the entire batch before metadata writes or submission;
+  preserve the published SDK's 1 MiB DTS state-capacity policy.
 
 ## [v3.4.1] - 2026-10-30
 

@@ -734,7 +734,11 @@ def _create_chainlit_app(
     """
 
     embed_settings = embed_settings or EmbedSettings()
-    ingestion_uploads_enabled = load_ingestion_uploads_enabled(config)
+    from gpt_rag_ui.config.native import load_native_settings
+    native_settings = load_native_settings(config)
+    ingestion_uploads_enabled = (
+        native_settings.private_uploads if native_settings else load_ingestion_uploads_enabled(config)
+    )
     _configure_embed_environment(embed_settings)
     _configure_auth_environment(config, auth_state)
     effective_auth = auth_state or _evaluate_auth_state(config, embed_settings)
@@ -780,6 +784,14 @@ def _create_chainlit_app(
                 effective_auth, ingestion_uploads_enabled=ingestion_uploads_enabled,
             )
         )
+        if native_settings is not None:
+            from gpt_rag_ui.clients.native_attachments import ATTACHMENT_TYPES, MAX_ATTACHMENTS
+            upload = chainlit_config.features.spontaneous_file_upload
+            # Chainlit's picker has an integer-MiB setting. The server enforces
+            # the finer 64 KiB/file and 256 KiB serialized native-turn limits.
+            upload.max_size_mb = 1
+            upload.max_files = MAX_ATTACHMENTS
+            upload.accept = sorted(set(ATTACHMENT_TYPES.values()))
     configure_chainlit_allowed_origins(embed_settings, chainlit_config)
     import chainlit.server as chainlit_server
 
@@ -948,13 +960,16 @@ def _create_chainlit_app(
         try:
             yield
         finally:
-            if chainlit_handlers.CHAT_BACKEND == "hosted_agent":
+            if native_settings is not None:
+                from gpt_rag_ui.api.native_chat import get_service
+                await get_service().aclose()
+            elif chainlit_handlers.CHAT_BACKEND == "hosted_agent":
                 from gpt_rag_ui.clients.hosted_agent_client import close_hosted_agent_client
 
                 await close_hosted_agent_client()
 
     host_app = FastAPI(title="Agent Landing Zone UI host", lifespan=_host_lifespan)
-    if effective_auth.oauth_configured and chainlit_handlers.CHAT_BACKEND == "hosted_agent":
+    if effective_auth.oauth_configured and chainlit_handlers.CHAT_BACKEND in {"hosted_agent", "native"}:
         from gpt_rag_ui.api.auth_recovery import register_auth_recovery_routes
         register_auth_recovery_routes(host_app)
     if embed_settings.enabled:
@@ -1085,7 +1100,12 @@ def _create_chainlit_app(
         }
         return JSONResponse(payload)
 
-    _mount_panel_routes(host_app, config, chainlit_handlers)
+    if native_settings is not None:
+        from gpt_rag_ui.api.native import register_native_routes
+        from gpt_rag_ui.api.native_chat import get_service
+        register_native_routes(host_app, get_service())
+    else:
+        _mount_panel_routes(host_app, config, chainlit_handlers)
 
     if blob_download_app is not None:
         host_app.mount("/api/download", blob_download_app)

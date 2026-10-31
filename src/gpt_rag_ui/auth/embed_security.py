@@ -656,7 +656,10 @@ def _inject_chainlit_cookie(
 def _copilot_project_settings_send(send, auth_mode: str):
     """Expose only the capabilities supported by this Copilot auth mode."""
 
-    ingestion_uploads_enabled = load_ingestion_uploads_enabled(get_config())
+    from gpt_rag_ui.config.native import load_native_settings
+    config = get_config()
+    native = load_native_settings(config)
+    ingestion_uploads_enabled = native.private_uploads if native else load_ingestion_uploads_enabled(config)
     pending_start = None
 
     async def send_response(message):
