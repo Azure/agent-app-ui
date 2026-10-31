@@ -503,6 +503,22 @@ class NativeRouteTests(unittest.TestCase):
             })
         self.assertEqual(response.status_code, 422)
 
+    def test_turn_returns_opaque_feedback_reference_without_client_host_or_id_guessing(self):
+        self.service.durable.converse = AsyncMock(return_value={"messages": [{"role": "assistant", "contents": []}]})
+        self.service.settings = settings(history=True, feedback=True)
+        with patch("gpt_rag_ui.api.native.validate_panel_bearer", AsyncMock(
+            return_value=PanelPrincipal(OID, TENANT, "authenticated"),
+        )):
+            created = self.client.post("/api/native/sessions", json={"application": "conversational"})
+            id = created.json()["id"]
+            turn = self.client.post(f"/api/native/sessions/{id}/turns", json={"text": "test"})
+            self.assertEqual(turn.status_code, 200)
+            self.assertEqual(turn.json()["native_ref"], id)
+            feedback = self.client.post(f"/api/native/sessions/{id}/feedback", json={
+                "native_ref": turn.json()["native_ref"], "rating": 1, "comment": "useful",
+            })
+        self.assertEqual(feedback.status_code, 201)
+
 
 class NativeCosmosContractTests(unittest.IsolatedAsyncioTestCase):
     async def test_partition_cas_duplicate_not_found_and_failed_writes_use_real_cosmos_shapes(self):

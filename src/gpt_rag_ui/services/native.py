@@ -191,6 +191,7 @@ class NativeService:
                     *(attachment.hosted_content() for attachment in attachments),
                 ]}] if attachments else None,
             )
+            native_ref = response["id"]
             await self._commit(row, response["id"])
             if response.get("status") != "completed" or response.get("error"):
                 raise NativeUnavailable("Native conversation did not complete; inspect its progress.")
@@ -198,8 +199,9 @@ class NativeService:
             # DTS service access authenticates the BFF, never the end user.
             # Tool delegation is an independent runtime contract, not caller metadata.
             response = await self.durable.converse(row["id"], text, options={}, attachments=attachments)
+            native_ref = row["id"]
             await self._commit(row, row["id"])
-        return response
+        return {"response": response, "native_ref": native_ref}
 
     async def start(self, principal: NativePrincipal, id: str, input: ResearchReviewStart) -> dict[str, Any]:
         row = await self.owned(principal, id)
