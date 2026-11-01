@@ -13,6 +13,7 @@ import chainlit as cl
 import httpx
 
 from gpt_rag_ui.config.chat_backend import load_chat_backend, select_upload_conversation_id
+from gpt_rag_ui.config.native import load_native_settings
 from gpt_rag_ui.clients.orchestrator_client import call_orchestrator_stream
 from gpt_rag_ui.clients.hosted_agent_client import (
     HostedAgentAuthenticationError, HostedAgentCancelledError,
@@ -48,9 +49,15 @@ config = get_config()
 
 Telemetry.configure_monitoring(config, APPLICATION_INSIGHTS_CONNECTION_STRING, APP_NAME)
 
-CHAT_BACKEND = load_chat_backend(config)
+NATIVE_SETTINGS = load_native_settings(config)
+CHAT_BACKEND = "native" if NATIVE_SETTINGS is not None else load_chat_backend(config)
 
-if CHAT_BACKEND == "hosted_agent":
+if NATIVE_SETTINGS is not None:
+    HOSTED_CONTINUITY_ENABLED = False
+    from gpt_rag_ui.config.panel_config import PanelSettings as _PanelSettings
+    PANEL_SETTINGS = _PanelSettings()
+    logger.info("Native UI mode=%s host=%s", NATIVE_SETTINGS.mode, NATIVE_SETTINGS.host)
+elif CHAT_BACKEND == "hosted_agent":
     from gpt_rag_ui.clients.hosted_agent_client import (
         build_invocation_messages,
         call_hosted_agent_stream,
@@ -320,7 +327,7 @@ async def get_auth_info() -> dict:
                 access_token = metadata.get("access_token")
             except DelegationError as exc:
                 logger.warning("User authentication recovery required: reason=%s", exc.code)
-                if CHAT_BACKEND == "hosted_agent":
+                if CHAT_BACKEND in {"hosted_agent", "native"}:
                     await offer_auth_recovery(exc.code, exc.claims_challenge, user=app_user)
                 else:
                     cl.user_session.set("user", None)

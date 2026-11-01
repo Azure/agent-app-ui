@@ -46,6 +46,7 @@ class PanelPrincipal:
     oid: str
     tenant_id: str
     access_token: str = field(repr=False)
+    name: str = field(default="", repr=False)
 
 
 def _bearer_token_from_request(request: Request) -> str:
@@ -100,4 +101,7 @@ async def validate_panel_bearer(
     except ValueError as exc:
         raise PanelForbiddenError("Token missing a valid user object id.") from exc
 
-    return PanelPrincipal(oid=oid, tenant_id=tenant_id, access_token=token)
+    return PanelPrincipal(
+        oid=oid, tenant_id=tenant_id, access_token=token,
+        name=str(claims.get("preferred_username") or claims.get("upn") or ""),
+    )

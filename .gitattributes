@@ -1,5 +1,6 @@
 # Keep Bash entrypoints executable from WSL/Linux checkouts.
 *.sh text eol=lf
+requirements.txt text eol=lf
 
 # CHANGELOG.md is historically stored with CRLF in the index.
 CHANGELOG.md whitespace=cr-at-eol
