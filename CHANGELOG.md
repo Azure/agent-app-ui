@@ -8,6 +8,9 @@
   Azure Cosmos 4.17.1 and Blob Storage 12.31.0 for the supported Python 3.12
   application. Preserve owner-partitioned metadata, conditional writes,
   protected downloads and all native MAF/Durable dependency pins.
+- **Refresh engineering action pins.** Regenerate the issue classifier with
+  gh-aw 0.93.3 and immutable action references. Keep the protected acceptance
+  workflow and the authored one-issue classification policy unchanged.
 
 ## [v3.5.0] - 2026-10-31
 
