@@ -341,4 +341,7 @@ def get_download_tokens() -> DownloadTokenManager:
 
 def native_downloads_enabled(config: ChatBackendConfig | None = None) -> bool:
     cfg = config if config is not None else get_config()
-    return load_chat_backend(cfg) == "hosted_agent"
+    host = os.environ.get("ORCHESTRATION_HOST")
+    if host is None:
+        host = cfg.get("ORCHESTRATION_HOST", "", str)
+    return host.strip() in {"hosted", "container_apps"} or load_chat_backend(cfg) == "hosted_agent"
