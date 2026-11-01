@@ -17,7 +17,8 @@ from durabletask.client import TaskHubGrpcClient
 from durabletask.azuremanaged.client import DurableTaskSchedulerClient
 
 from gpt_rag_ui.clients.native_attachments import (
-    InlineAttachment, MAX_ATTACHMENT_BYTES, MAX_INLINE_TURN_BYTES, validate_inline_turn,
+    InlineAttachment, ATTACHMENT_TYPES, MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES,
+    MAX_INLINE_TURN_BYTES, validate_inline_turn,
 )
 from gpt_rag_ui.clients.native_durable import NativeDurableClient, BoundedRpc
 from gpt_rag_ui.clients import native_durable
@@ -33,6 +34,26 @@ def attachment(name="note.txt", content_type="text/plain", data=b"private text")
 
 
 class NativeAttachmentValidationTests(unittest.TestCase):
+    def test_frozen_native_contract_matches_actual_limits_and_first_registration_names(self):
+        # Copied with the behavioral tests for installed-wheel/container checks.
+        contract = json.loads((Path(__file__).parent / "contracts" / "native-ui.json").read_text(encoding="utf-8"))
+        policy = contract["private_attachments"]
+        schema = InlineAttachment.model_json_schema()["properties"]
+        self.assertEqual(policy["max_files"], MAX_ATTACHMENTS)
+        self.assertEqual(policy["max_raw_bytes_per_file"], MAX_ATTACHMENT_BYTES)
+        self.assertEqual(policy["raw_total_upper_bound_bytes"], MAX_ATTACHMENTS * MAX_ATTACHMENT_BYTES)
+        self.assertEqual(policy["max_serialized_content_bytes_per_turn"], MAX_INLINE_TURN_BYTES)
+        self.assertEqual(policy["max_base64_characters_per_file"], schema["data_base64"]["maxLength"])
+        self.assertEqual(policy["max_filename_characters"], schema["name"]["maxLength"])
+        self.assertEqual(policy["max_content_type_characters"], schema["content_type"]["maxLength"])
+        self.assertEqual(policy["allowed_types"], ATTACHMENT_TYPES)
+        self.assertEqual(contract["registration_names"], {
+            "agent": settings().agent_name, "workflow": settings().workflow_name,
+        })
+        self.assertFalse(policy["workflow_attachments_supported"])
+        self.assertFalse(policy["ingestion_required"])
+        self.assertFalse(policy["blob_writes_required"])
+
     def test_formats_and_limits(self):
         for name, mime, data in (
             ("note.txt", "text/plain", b"hello"), ("note.md", "text/markdown", b"# hello"),

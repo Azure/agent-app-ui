@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "registration_names": {
+    "agent": "agent-lz-conversation",
+    "workflow": "agent-lz-research-review"
+  },
+  "private_attachments": {
+    "enable_flag": "ENABLE_PRIVATE_ATTACHMENTS",
+    "default_enabled": false,
+    "supported_application_modes": ["conversational", "both"],
+    "workflow_attachments_supported": false,
+    "file_only_turns_supported": false,
+    "ingestion_required": false,
+    "blob_writes_required": false,
+    "max_files": 3,
+    "min_raw_bytes_per_file": 1,
+    "max_raw_bytes_per_file": 65536,
+    "raw_total_upper_bound_bytes": 196608,
+    "max_base64_characters_per_file": 87384,
+    "max_filename_characters": 128,
+    "max_content_type_characters": 64,
+    "max_prompt_characters": 8000,
+    "max_serialized_content_bytes_per_turn": 262144,
+    "serialized_budget_basis": "max of ASCII-escaped UTF-8 JSON Hosted input-items and Durable core user-message envelopes",
+    "serialized_budget_includes": ["prompt", "base64_data_uri", "filename", "mime", "core_content_metadata", "json_escaping"],
+    "serialized_budget_excludes": ["existing_history", "future_model_tool_output", "transport_framing"],
+    "native_dts_state_budget_bytes": 1048576,
+    "allowed_types": {
+      ".txt": "text/plain",
+      ".md": "text/markdown",
+      ".pdf": "application/pdf",
+      ".png": "image/png",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg"
+    },
+    "hosted_inputs": ["input_file", "input_image"],
+    "durable_inputs": ["context_messages", "context_message_ids"]
+  }
+}
