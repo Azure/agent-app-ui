@@ -75,8 +75,10 @@ class FailureContractTests(unittest.TestCase):
         self.assertFalse(client.connected)
         self.assertEqual({}, client.client)
         provider.assert_called_once()
-        self.assertEqual(["agent-app-ui", "gpt-rag-ui", "agent-lz", None],
+        self.assertEqual(["agent-lz", "agent-lz"],
                          [selector.label_filter for selector in provider.call_args.kwargs["selects"]])
+        self.assertEqual(["ORCHESTRATION_HOST", "APPLICATION_MODE"],
+                         [selector.key_filter for selector in provider.call_args.kwargs["selects"]])
 
     def test_provider_invalid_endpoint_then_real_malformed_connection_is_disconnected(self):
         def provider(**kwargs):
