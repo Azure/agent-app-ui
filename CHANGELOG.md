@@ -4,6 +4,10 @@
 
 ### Changed
 
+- **Published native SDK dependency prerequisite.** Pin OpenAI 3.38.0, Agent
+  Framework core 1.24.0, Durable Extension 1.0.0b261029 and Durable Task 1.12.0,
+  with gRPC typing support, before native consumers enter the protected-base
+  evaluator. Existing UI behavior, policy and quality checks are unchanged.
 - **Validated runtime dependency maintenance.** Adopt Azure App Configuration
   SDK 1.10.0 and Uvicorn 0.54.0, and require Pydantic 2.14.1 or newer within
   version 2. Preserve authentication, container and protected quality contracts.
