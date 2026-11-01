@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [v3.5.0] - 2026-10-31
+
 ### Added
 
 - **Explicit native conversational and process UI.** Add authenticated Chainlit
@@ -42,6 +44,18 @@
   files and 256 KiB serialized content per turn, including base64 and JSON
   expansion. Validate the entire batch before metadata writes or submission;
   preserve the published SDK's 1 MiB DTS state-capacity policy.
+
+## [v3.4.2] - 2026-10-31
+
+### Changed
+
+- **Published native SDK dependency prerequisite.** Pin OpenAI 3.38.0, Agent
+  Framework core 1.24.0, Durable Extension 1.0.0b261029 and Durable Task 1.12.0,
+  with gRPC typing support, before native consumers enter the protected-base
+  evaluator. Existing UI behavior, policy and quality checks are unchanged.
+- **Validated runtime dependency maintenance.** Adopt Azure App Configuration
+  SDK 1.10.0 and Uvicorn 0.54.0, and require Pydantic 2.14.1 or newer within
+  version 2. Preserve authentication, container and protected quality contracts.
 
 ## [v3.4.1] - 2026-10-30
 
