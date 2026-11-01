@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Reviewed build and storage dependencies.** Adopt setuptools 84.2.1,
+  Azure Cosmos 4.17.1 and Blob Storage 12.31.0 for the supported Python 3.12
+  application. Preserve owner-partitioned metadata, conditional writes,
+  protected downloads and all native MAF/Durable dependency pins.
+
 ## [v3.5.0] - 2026-10-31
 
 ### Added
