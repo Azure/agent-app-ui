@@ -490,20 +490,14 @@ async def acquire_obo_token(user_access_token: str, resource_scope: str) -> str:
 
 
 async def acquire_service_identity_token(resource_scope: str) -> str:
-    """Acquire this service's own managed-identity/Azure CLI credential token
-    for the *trusted middle-tier* delegated-header owner-binding model
-    (``HOSTED_CONVERSATION_OWNER_BINDING=delegated``, see
-    ``hosted_conversation_store.py``): the BFF authenticates as itself and
-    separately asserts the validated end user's oid via the platform's
-    ``x-ms-user-identity`` header, rather than exchanging the user's own
-    token via on-behalf-of.
+    """Acquire this service's own asynchronous credential token, not a user token.
 
-    This reuses the exact same credential chain as
-    ``HOSTED_AGENT_AUTH_MODE=service_identity`` (``_default_credential``), but
-    is intentionally a separate function from ``acquire_obo_token``: the two
-    represent different trust models and must never be conflated. A fresh
-    credential is created and closed for each call (no caching), matching the
-    OBO helper's pattern; nothing about the returned token is ever logged.
+    Reuse the ``HOSTED_AGENT_AUTH_MODE=service_identity`` credential chain.
+    Native Responses and approved common-source reads send this bearer without
+    asserting a user header. Legacy Conversations owner binding remains a
+    separate caller-owned protocol; this helper does not create user context.
+    A fresh credential is closed after every acquisition, and tokens are never
+    logged. Failure never falls back to OBO.
     """
     credential = _default_credential()
     try:
@@ -511,8 +505,7 @@ async def acquire_service_identity_token(resource_scope: str) -> str:
             token = await credential.get_token(resource_scope)
         except AzureError as exc:
             raise HostedAgentAuthenticationError(
-                "Unable to acquire a service-identity data-plane token for "
-                "the hosted-continuity delegated owner-binding path."
+                "Unable to acquire a service-identity data-plane token."
             ) from exc
     finally:
         await credential.close()

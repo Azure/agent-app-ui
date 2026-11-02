@@ -74,6 +74,7 @@ class NativeDownloadTests(unittest.IsolatedAsyncioTestCase):
         self.storage_status = 200
         self.search_status = 200
         self.source_headers = {}
+        self.allow_workload_source = False
         self.service = self.stack.enter_context(patch.object(
             blob, "acquire_service_identity_token", AsyncMock(return_value="synthetic-workload"),
         ))
@@ -91,10 +92,15 @@ class NativeDownloadTests(unittest.IsolatedAsyncioTestCase):
                 allowed = USER_A in request.headers["x-ms-query-source-authorization"]
                 return httpx.Response(self.search_status, headers=self.source_headers, json={"value": self.rows if allowed else []})
             status = self.storage_status
-            if request.url.path.startswith("/documents/") and USER_A not in request.headers["authorization"]:
+            if (
+                request.url.path.startswith("/documents/") and USER_A not in request.headers["authorization"]
+                and not (self.allow_workload_source and request.headers["authorization"] == "Bearer synthetic-workload")
+            ):
                 status = 403
             return httpx.Response(status, headers={"content-length": "14", **self.source_headers}, stream=FileStream())
+        self.source_handler = handler
         client = blob.NativeDownloadClient(Config(), transport=httpx.MockTransport(handler))
+        self.native_client = client
         self.legacy = Mock(side_effect=AssertionError("legacy reader used"))
         self.owner = AsyncMock(side_effect=AssertionError("classic owner lookup used"))
         self.app = FastAPI()
@@ -132,6 +138,79 @@ class NativeDownloadTests(unittest.IsolatedAsyncioTestCase):
     async def fetch(self, url, user="a"):
         headers = {"Cookie": f"auth={user}"} if user else {}
         return await self.http.get(url, headers=headers)
+
+    async def use_service_profile(self):
+        self.stack.enter_context(patch.dict(os.environ, {"HOSTED_AGENT_AUTH_MODE": "service_identity"}))
+        app = FastAPI()
+        client = blob.NativeDownloadClient(Config(), transport=httpx.MockTransport(self.source_handler))
+        register_secure_download_route(
+            app, manager=self.manager, native_client=client,
+            download_blob=self.legacy, allowed_containers={"documents", "images", "uploads"},
+            conversation_container="uploads", shared_containers={"documents", "images"},
+            sessions=None, conversation_resolver=self.owner,
+        )
+        self.http = httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="https://ui.example.com",
+        )
+        self.addAsyncCleanup(self.http.aclose)
+        self.allow_workload_source = True
+
+    async def test_service_source_uses_workload_without_obo_but_retains_grant_guards(self):
+        await self.use_service_profile()
+        response = await self.fetch(self.grant())
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(b"synthetic-file", response.content)
+        self.service.assert_awaited_once_with("https://storage.azure.com/.default")
+        self.obo.assert_not_awaited()
+        self.assertNotIn("x-ms-user-identity", self.calls[0].headers)
+        self.assertEqual(401, (await self.fetch(self.grant(), user=None)).status_code)
+        self.assertEqual(404, (await self.fetch(self.grant(), user="b")).status_code)
+        self.assertEqual(404, (await self.fetch(self.grant() + "tampered")).status_code)
+        self.assertEqual(404, (await self.fetch(self.grant(container="other"))).status_code)
+        from gpt_rag_ui.api import download_routes
+        principal = security.DownloadPrincipal(f"{TENANT}:{USER_A}", "different-session", metadata())
+        with patch.object(download_routes, "resolve_download_principal", AsyncMock(return_value=principal)):
+            self.assertEqual(404, (await self.fetch(self.grant(session="original-session"))).status_code)
+        self.assertEqual(1, len(self.calls))
+        self.legacy.assert_not_called()
+        self.owner.assert_not_awaited()
+
+    async def test_service_source_changes_and_failures_never_fall_back_to_obo(self):
+        await self.use_service_profile()
+        for configured in ("user_delegated", "unknown"):
+            with patch.dict(os.environ, {"HOSTED_AGENT_AUTH_MODE": configured}):
+                self.assertEqual(503, (await self.fetch(self.grant())).status_code)
+        self.assertEqual([], self.calls)
+        self.service.assert_not_awaited()
+        for status, expected in ((401, 503), (403, 403), (302, 403)):
+            self.storage_status = status
+            self.assertEqual(expected, (await self.fetch(self.grant())).status_code)
+        self.service.side_effect = blob.HostedAgentAuthenticationError("synthetic-workload-unavailable")
+        self.assertEqual(503, (await self.fetch(self.grant())).status_code)
+        self.obo.assert_not_awaited()
+
+    async def test_delegated_grant_rejects_live_appconfig_service_mode_before_any_credentials(self):
+        self.assertEqual("user_delegated", self.native_client.auth_mode)
+        old_grant = self.grant()
+        self.allow_workload_source = True
+        with patch.dict(SETTINGS, {"HOSTED_AGENT_AUTH_MODE": "service_identity"}):
+            response = await self.fetch(old_grant)
+        self.assertEqual(503, response.status_code)
+        self.assertEqual("Protected document access denied or unavailable.", response.json()["detail"])
+        self.assertEqual("user_delegated", self.native_client.auth_mode)
+        self.service.assert_not_awaited()
+        self.obo.assert_not_awaited()
+        self.assertEqual([], self.calls)
+        self.legacy.assert_not_called()
+        self.owner.assert_not_awaited()
+
+    async def test_service_profile_rejects_protected_uploaded_corpus_without_delegated_fallback(self):
+        await self.use_service_profile()
+        response = await self.fetch(self.grant(container="uploads", path=PATH))
+        self.assertEqual(403, response.status_code)
+        self.assertEqual([], self.calls)
+        self.obo.assert_not_awaited()
+        self.service.assert_not_awaited()
 
     async def test_legacy_registration_without_native_client_keeps_authentication_required(self):
         manager = security.DownloadTokenManager(

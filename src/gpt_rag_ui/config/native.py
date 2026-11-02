@@ -12,6 +12,7 @@ from gpt_rag_ui.config.errors import ConfigurationError
 
 ApplicationMode = Literal["conversational", "workflow", "both"]
 OrchestrationHost = Literal["hosted", "container_apps"]
+HostedAuthMode = Literal["user_delegated", "service_identity"]
 
 
 class NativeConfig(Protocol):
@@ -48,6 +49,18 @@ def flag(config: NativeConfig, key: str) -> bool:
     return value == "true"
 
 
+def load_hosted_auth_mode(config: NativeConfig) -> HostedAuthMode:
+    key = "HOSTED_AGENT_AUTH_MODE"
+    configured = str(config.get(key, "", str)).strip()
+    value = os.environ.get(key)
+    if value is not None and configured and value.strip() != configured:
+        raise ConfigurationError(f"Contradictory {key}; update deployment configuration.")
+    mode = read(config, key, "user_delegated")
+    if mode not in {"user_delegated", "service_identity"}:
+        raise ConfigurationError(f"{key} must be user_delegated or service_identity.")
+    return cast(HostedAuthMode, mode)
+
+
 def endpoint(value: str, key: str) -> str:
     parsed = urlsplit(value)
     if (
@@ -81,6 +94,7 @@ class NativeSettings:
     private_container: str = ""
     token_audience: str = ""
     tenant_id: str = ""
+    auth_mode: HostedAuthMode = "user_delegated"
 
     @property
     def conversational(self) -> bool:
@@ -102,7 +116,7 @@ class NativeSettings:
             self.resource_scope, self.scheduler_binding, self.agent_name,
             self.workflow_name, self.database_account, self.database,
             self.metadata_container, self.storage_account, self.private_container,
-            self.token_audience, self.tenant_id,
+            self.token_audience, self.tenant_id, self.auth_mode,
         )
 
 
@@ -139,17 +153,15 @@ def load_native_settings(config: NativeConfig) -> NativeSettings | None:
         tenant_id=read(config, "OAUTH_AZURE_AD_TENANT_ID", read(config, "AZURE_TENANT_ID")),
         workflow_title=read(config, "WORKFLOW_DISPLAY_NAME", "Pesquisa e revisão"),
     )
+    auth_mode = load_hosted_auth_mode(config)
     if host == "hosted":
         if read(config, "DURABLE_TASK_SCHEDULER_CONNECTION_STRING"):
             raise ConfigurationError("Hosted UI cannot bind a Durable Task Scheduler.")
-        auth_mode = read(config, "HOSTED_AGENT_AUTH_MODE", "user_delegated")
-        if auth_mode != "user_delegated":
-            raise ConfigurationError("Native Hosted uses user-delegated OBO, never service MI as the user.")
         scope = read(config, "HOSTED_AGENT_RESOURCE_SCOPE")
         if not scope.endswith("/.default") or "management.azure.com" in scope.lower():
             raise ConfigurationError("HOSTED_AGENT_RESOURCE_SCOPE must be an explicit data-plane /.default scope.")
         settings = NativeSettings(
-            host="hosted", mode=cast(ApplicationMode, mode), resource_scope=scope,
+            host="hosted", mode=cast(ApplicationMode, mode), resource_scope=scope, auth_mode=auth_mode,
             agent_url=endpoint(read(config, "HOSTED_AGENT_BASE_URL"), "HOSTED_AGENT_BASE_URL")
             if mode != "workflow" else "",
             workflow_url=endpoint(read(config, "HOSTED_WORKFLOW_BASE_URL"), "HOSTED_WORKFLOW_BASE_URL")
@@ -157,6 +169,8 @@ def load_native_settings(config: NativeConfig) -> NativeSettings | None:
             **values,
         )
     else:
+        if auth_mode != "user_delegated":
+            raise ConfigurationError("HOSTED_AGENT_AUTH_MODE=service_identity requires ORCHESTRATION_HOST=hosted.")
         if read(config, "HOSTED_AGENT_BASE_URL") or read(config, "HOSTED_WORKFLOW_BASE_URL"):
             raise ConfigurationError("Container Apps UI cannot also select Hosted endpoints.")
         binding = read(config, "DURABLE_TASK_SCHEDULER_CONNECTION_STRING")

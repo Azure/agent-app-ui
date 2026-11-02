@@ -80,6 +80,10 @@ class DelegationError(RuntimeError):
 
     def __init__(self, code: str, *, claims_challenge: object = None):
         messages = {
+            "user_delegation_required": (
+                "This source requires user delegation (OBO), but OBO is disabled. "
+                "Ask the application operator to enable OBO and configure the required consent."
+            ),
             "consent_required": (
                 "Consent is required for protected retrieval. Ask your administrator "
                 "to grant the application's delegated API permissions, then sign in again."
