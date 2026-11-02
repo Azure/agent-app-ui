@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Optional native user delegation.** Keep authenticated UI access and
+  `user_delegated` as the default. Explicit `service_identity` uses the selected
+  workload credentials without changing conversation, citation or download
+  ownership boundaries.
+- **Safe managed Toolbox outcomes.** Report missing source delegation and tool
+  failures without exposing provider details or consent links. Never replay a
+  request or change authentication mode automatically.
+
 ### Changed
 
 - **Reviewed build and storage dependencies.** Adopt setuptools 84.2.1,
