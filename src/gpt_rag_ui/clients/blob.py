@@ -17,9 +17,13 @@ from email.utils import format_datetime
 
 import httpx
 
-from gpt_rag_ui.clients.hosted_agent_client import acquire_obo_token, acquire_service_identity_token
+from gpt_rag_ui.clients.hosted_agent_client import (
+    HostedAgentAuthenticationError, acquire_obo_token, acquire_service_identity_token,
+)
 from gpt_rag_ui.auth.auth_common import validated_claims_challenge, http_claims_challenge
 from gpt_rag_ui.config.appconfig import AppConfigClient
+from gpt_rag_ui.config.errors import ConfigurationError
+from gpt_rag_ui.config.native import load_hosted_auth_mode
 
 
 class NativeDownloadError(RuntimeError):
@@ -40,11 +44,12 @@ class NativeBlobDownload:
 
 
 class NativeDownloadClient:
-    """Fresh user authorization, fixed destinations, no SAS or auth fallback."""
+    """Admitted-user grants and fixed destinations; no SAS or auth fallback."""
 
     def __init__(self, config: AppConfigClient, *, transport: httpx.AsyncBaseTransport | None = None):
         self.config = config
         self.transport = transport
+        self.auth_mode = load_hosted_auth_mode(config)
 
     def _get(self, key: str, default: str = "") -> str:
         value = os.environ.get(key)
@@ -56,6 +61,12 @@ class NativeDownloadClient:
         self, *, container: str, blob_name: str, conversation_id: str,
         assertion: str, object_id: str,
     ) -> NativeBlobDownload:
+        try:
+            current_mode = load_hosted_auth_mode(self.config)
+        except ConfigurationError:
+            raise NativeDownloadError(503) from None
+        if current_mode != self.auth_mode:
+            raise NativeDownloadError(503)
         account = self._get("STORAGE_ACCOUNT_NAME")
         allowed = {
             self._get("DOCUMENTS_STORAGE_CONTAINER"),
@@ -72,6 +83,10 @@ class NativeDownloadClient:
             or any(ord(c) < 32 for c in blob_name)
             or any(p in {"", ".", ".."} for p in blob_name.split("/"))
             or (
+                self.auth_mode == "service_identity"
+                and container == self._get("CONVERSATION_DOCUMENTS_STORAGE_CONTAINER")
+            )
+            or (
                 blob_name.startswith("conversations/")
                 and container != self._get("CONVERSATION_DOCUMENTS_STORAGE_CONTAINER")
             )
@@ -85,18 +100,23 @@ class NativeDownloadClient:
         ))
         acquired = False
         try:
-            if container == self._get("CONVERSATION_DOCUMENTS_STORAGE_CONTAINER"):
-                if not conversation_id or not blob_name.startswith(f"conversations/{conversation_id}/"):
-                    raise NativeDownloadError()
-                async with asyncio.timeout(30):
+            async with asyncio.timeout(30):
+                if container == self._get("CONVERSATION_DOCUMENTS_STORAGE_CONTAINER"):
+                    if not conversation_id or not blob_name.startswith(f"conversations/{conversation_id}/"):
+                        raise NativeDownloadError()
                     await self._authorize_upload(
                         http, assertion, object_id, conversation_id, url,
                     )
-                token = await acquire_service_identity_token("https://storage.azure.com/.default")
-            else:
-                # Storage enforces the current user's RBAC/ADLS ACL. Failure
-                # never falls back to this application's workload identity.
-                token = await acquire_obo_token(assertion, "https://storage.azure.com/.default")
+                    token = await acquire_service_identity_token("https://storage.azure.com/.default")
+                elif self.auth_mode == "service_identity":
+                    # Source RBAC still applies alongside session/citation grants.
+                    try:
+                        token = await acquire_service_identity_token("https://storage.azure.com/.default")
+                    except HostedAgentAuthenticationError:
+                        raise NativeDownloadError(503) from None
+                else:
+                    # Protected sources retain user RBAC/ADLS ACL enforcement.
+                    token = await acquire_obo_token(assertion, "https://storage.azure.com/.default")
             response = await http.send(http.build_request("GET", url, headers={
                 "Authorization": f"Bearer {token}",
                 "x-ms-version": "2023-11-03",
@@ -105,9 +125,12 @@ class NativeDownloadClient:
             }), stream=True)
             stack.push_async_callback(response.aclose)
             if response.status_code != 200:
+                service_source = self.auth_mode == "service_identity"
                 raise NativeDownloadError(
+                    503 if service_source and response.status_code == 401 else
                     401 if response.status_code == 401 else 403,
-                    claims_challenge=http_claims_challenge(response) if response.status_code in {401, 403} else None,
+                    claims_challenge=http_claims_challenge(response)
+                    if not service_source and response.status_code in {401, 403} else None,
                 )
             try:
                 size = int(response.headers.get("content-length", ""))

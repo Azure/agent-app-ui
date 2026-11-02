@@ -12,7 +12,9 @@ from unittest.mock import AsyncMock, Mock, patch
 
 from durabletask.client import TaskHubGrpcClient, OrchestrationStatus
 from gpt_rag_ui.api import native_chat
+from gpt_rag_ui.auth.auth_common import DelegationError
 from gpt_rag_ui.clients.native_durable import NativeDurableClient
+from gpt_rag_ui.clients.native_hosted import HostedConsentRequired, HostedToolFailure
 from gpt_rag_ui.clients.native_metadata import MemoryMetadata
 from gpt_rag_ui.services.native import NativeService, ResearchReviewStart
 from test_native_ui import settings, NativePrincipal, TENANT, OID, OTHER
@@ -103,6 +105,42 @@ class NativePresentationTests(unittest.IsolatedAsyncioTestCase):
         await native_chat.handle_message(SimpleNamespace(content="hello", elements=[]))
         self.client.converse.assert_not_awaited()
         self.assertIn("Entre", self.messages[-1]["content"])
+
+    async def test_noninteractive_service_failures_are_visible_without_a_signin_action(self):
+        error = DelegationError("authentication_unavailable")
+        with patch.object(native_chat, "offer_auth_recovery", AsyncMock(return_value=False)) as recovery:
+            row = await self.service.create(self.owner, "conversational")
+            self.session["native_session_id"] = row["id"]
+            self.client.converse.side_effect = error
+            await native_chat.handle_message(SimpleNamespace(content="hello", elements=[]))
+            self.assertEqual(self.messages[-1], {"content": str(error)})
+            with patch.object(self.service, "progress", AsyncMock(side_effect=error)):
+                await native_chat.handle_action(SimpleNamespace(name="native_refresh", payload={"id": row["id"]}))
+            self.assertEqual(self.messages[-1], {"content": str(error)})
+            self.assertEqual(recovery.await_count, 2)
+
+    async def test_managed_consent_and_tool_failure_have_visible_safe_noninteractive_results(self):
+        for error, expected in (
+            (HostedConsentRequired(), "approved Microsoft Foundry consent"),
+            (HostedToolFailure(), "check its authorization"),
+            (HostedToolFailure(auth_mode="service_identity"), "enable OBO"),
+            (DelegationError("user_delegation_required"), "OBO is disabled"),
+        ):
+            row = await self.service.create(self.owner, "conversational")
+            self.session["native_session_id"] = row["id"]
+            self.client.converse.side_effect = error
+            await native_chat.handle_message(SimpleNamespace(content="question", elements=[]))
+            self.assertIn(expected, self.messages[-1]["content"])
+            self.assertEqual({"content"}, set(self.messages[-1]))
+            self.assertNotIn("synthetic-provider-private", self.messages[-1]["content"])
+
+    async def test_restored_session_consent_is_visible_without_selecting_or_resuming_it(self):
+        self.session["native_session_id"] = "unchanged"
+        with patch.object(self.service, "resume", AsyncMock(side_effect=HostedConsentRequired())):
+            await native_chat.on_resume({"id": "owned-session-selector"})
+        self.assertIn("approved Microsoft Foundry consent", self.messages[-1]["content"])
+        self.assertEqual({"content"}, set(self.messages[-1]))
+        self.assertEqual("unchanged", self.session["native_session_id"])
 
     async def test_refresh_reads_json_native_completed_product_result(self):
         hub = Mock(spec=TaskHubGrpcClient)
