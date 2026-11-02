@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [v3.6.0] - 2026-11-02
+
 ### Added
 
 - **Optional native user delegation.** Keep authenticated UI access and
@@ -21,6 +23,14 @@
 - **Refresh engineering action pins.** Regenerate the issue classifier with
   gh-aw 0.93.3 and immutable action references. Keep the protected acceptance
   workflow and the authored one-issue classification policy unchanged.
+
+### Migration and recovery
+
+- Adopt with platform and orchestrator v7.1.0. OBO remains the default.
+  Explicit service identity changes outbound access, not user admission or
+  document entitlements. Redeploy the coordinated combination when changing
+  profiles and start new native sessions. Do not migrate old owner mappings
+  or replay transcripts. Roll back the prior coordinated combination.
 
 ## [v3.5.0] - 2026-10-31
 
