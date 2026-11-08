@@ -10,6 +10,7 @@ from pathlib import Path
 import chainlit
 from playwright.sync_api import sync_playwright
 
+from gpt_rag_ui.config.resources import get_asset_root
 from gpt_rag_ui.services.native_presentation import rest_projection, text_projection
 
 
@@ -36,9 +37,9 @@ class InlineBrowserTests(unittest.TestCase):
         react = re.search(r"(\w+)\.memo\(function\(\{sourceCode:\w+,props:\w+\}", installed).group(1)
         hook = f"window.nativeSmoke={{React:{react},createRoot:{mount.group(1)}.createRoot,Runner:{runner},imports:{imports}}};"
         instrumented = installed[:mount.start()] + hook + installed[mount.end()-6:]
-        root = Path(__file__).parents[1]
+        root = get_asset_root()
         source = (root / "public/elements/Presentation.jsx").read_text(encoding="utf-8")
-        envelope = json.loads((root / "tests/fixtures/inline-presentation/presentation-valid.json").read_text())
+        envelope = json.loads((Path(__file__).parent / "fixtures/inline-presentation/presentation-valid.json").read_text())
         envelope["contributions"][0]["blocks"][1]["rows"][1]["values"]["revenue"] = None
         envelope["contributions"][0]["blocks"][1]["rows"][2]["status"] = {
             "value": "critical", "provenance": {"origin": "source", "binding": {
@@ -115,7 +116,8 @@ class InlineBrowserTests(unittest.TestCase):
         self.assertEqual(len(limit_projection["contributions"][0]["blocks"][2]["series"]), 8)
         cases["limits"] = carrier(limit_wire)
         artifacts = root / ".artifacts/inline-presentation-playwright"
-        artifacts.mkdir(parents=True, exist_ok=True)
+        if capture or measure:
+            artifacts.mkdir(parents=True, exist_ok=True)
         requests, errors = [], []
         css = next(assets.glob("index-*.css")).read_text(encoding="utf-8")
         # Exactly the stylesheet and theme variables loaded by the app; no

@@ -26,6 +26,7 @@ class InstalledPackageTests(unittest.TestCase):
         cls.run_command([
             str(cls.python), "-m", "pip", "install", "--quiet",
             "-r", str(ROOT / "requirements.txt"),
+            "-r", str(ROOT / "requirements-test.txt"),
         ], timeout=600)
         cls.run_command([str(cls.python), "-m", "pip", "check"])
         cls.wheels = cls.root / "wheels"

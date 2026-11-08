@@ -27,7 +27,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: requirements.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-test.txt
       - name: Select protected unittest evidence runner
         shell: bash
         run: |
@@ -43,8 +45,11 @@ jobs:
       - name: Install runtime dependencies and package
         run: |
           python -m pip install -r requirements.txt
+          python -m pip install -r requirements-test.txt
           python -m pip install -r "$RUNNER_TEMP/requirements-quality.txt"
           python -m pip install --no-deps -e .
+      - name: Install Chromium for offline browser tests
+        run: python -m playwright install --with-deps chromium
       - name: Run existing unittest suite including installed wheel acceptance
         run: python "$RUNNER_TEMP/run-unittest.py" --base-ref "$BASE_SHA" --report .artifacts/unittest.json
       - name: Retain exact unittest execution evidence
@@ -115,7 +120,11 @@ jobs:
       - name: Check out candidate
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Build ephemeral Linux image without publishing
-        run: docker build --tag "gpt-rag-ui-quality:$GITHUB_SHA" .
+        run: |
+          docker build --tag "gpt-rag-ui-quality-base:$GITHUB_SHA" .
+          docker build --file tests/Dockerfile \
+            --build-arg "BASE_IMAGE=gpt-rag-ui-quality-base:$GITHUB_SHA" \
+            --tag "gpt-rag-ui-quality:$GITHUB_SHA" .
       - name: Check installed origins, startup, resources and behavioral contracts offline
         run: >-
           docker run --rm --network none --env PYTHONDONTWRITEBYTECODE=1

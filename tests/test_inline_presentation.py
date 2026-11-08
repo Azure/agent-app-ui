@@ -5,8 +5,10 @@ from pathlib import Path
 import shutil
 import subprocess
 import importlib.util
+import sys
 import unittest
 
+from gpt_rag_ui.config.resources import get_asset_root
 from gpt_rag_ui.services.native_presentation import read_presentation, presentations, rest_projection, text_projection, SCHEMA
 
 
@@ -129,12 +131,14 @@ class PresentationTests(unittest.TestCase):
         if node is None:
             package = importlib.util.find_spec("playwright")
             if package and package.submodule_search_locations:
-                candidate = Path(package.submodule_search_locations[0]) / "driver/node.exe"
+                candidate = Path(package.submodule_search_locations[0]) / "driver" / (
+                    "node.exe" if sys.platform == "win32" else "node"
+                )
                 if candidate.is_file():
                     node = str(candidate)
         if node is None:
             self.skipTest("Existing Node or Playwright driver required for JS helper validation")
-        asset = (Path(__file__).parents[1] / "public/elements/Presentation.jsx").read_text()
+        asset = (get_asset_root() / "public/elements/Presentation.jsx").read_text()
         helpers = asset[asset.index("function parts("):asset.index("function Table(")]
         program = helpers + """
 const assert = require('node:assert/strict');
@@ -153,7 +157,7 @@ assert.equal(tiny.exponent, -1001);
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_renderer_has_no_active_html_urls_or_remote_dependencies(self):
-        asset = (Path(__file__).parents[1] / "public/elements/Presentation.jsx").read_text()
+        asset = (get_asset_root() / "public/elements/Presentation.jsx").read_text()
         for forbidden in ("dangerouslySetInnerHTML", "fetch(", "eval(", "foreignObject", "xlinkHref", "href=", "http://", "https://"):
             self.assertNotIn(forbidden, asset)
         self.assertIn("sendUserMessage(prompt)", asset)
