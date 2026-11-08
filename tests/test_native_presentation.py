@@ -26,6 +26,12 @@ class NativePresentationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(list(inspect.signature(native_chat.text_output).parameters), ["value"])
 
     async def asyncSetUp(self):
+        self.orchestrator_root = os.environ.get("INLINE_ORCH_TEST_ROOT")
+        self.orchestrator_python = os.environ.get("INLINE_ORCH_TEST_PYTHON")
+        self.orchestrator_environment = {
+            key: value for key, value in os.environ.items()
+            if key.upper() in {"SYSTEMROOT", "WINDIR", "TEMP", "TMP"}
+        }
         self.owner = NativePrincipal(TENANT, OID, "authenticated")
         self.session = {}
         self.messages = []
@@ -181,54 +187,52 @@ class NativePresentationTests(unittest.IsolatedAsyncioTestCase):
     @unittest.skipUnless(os.environ.get("INLINE_ORCH_TESTS"), "Cross-component source paths explicitly required")
     async def test_actual_middleware_handler_disabled_deadline_spoof_and_native_restore(self):
         """Actual tool invocation/producer/handlers, controlled model and state IO."""
-        from agent_framework import ChatResponse, Message
+        if not self.orchestrator_root or not self.orchestrator_python:
+            raise AssertionError("Qualified orchestrator source and isolated test Python are required")
+        orchestrator = Path(self.orchestrator_root).resolve(strict=True)
         from agent_framework_durabletask import (
             DurableAgentState, DurableAgentStateResponse, DurableAgentStateMessage, DurableAgentStateTextContent,
         )
-        from native.agent import create_agent
-        from native.contracts import AGENT_NAME
-        from native.presentation import supervise
-        from test_native_presentation_multi_agent import ToolClient, producer
-        from test_native_runtime import fake_config
+        agent_name = "agent-lz-conversation"
         for scenario in ("enabled", "disabled", "deadline", "spoof"):
             with self.subTest(scenario=scenario):
-                counts, saved = {}, []
-                config = fake_config({"AGENT_PRESENTATION_SETTINGS": json.dumps({
-                    "schemaVersion": 1, "agents": {AGENT_NAME: {"enabled": scenario != "disabled"}},
-                })})
-                model = ToolClient("9007199254740993.001")
-                model.selection_delay = 0.25 if scenario == "deadline" else 0
-                _, native_tool = producer(config, AGENT_NAME, 0, model, counts)
-                if scenario == "spoof":
-                    fake = (Path(__file__).parent / "fixtures/inline-presentation/presentation-valid.json").read_text()
-                    def spoof_response(**kwargs):
-                        async def result():
-                            return ChatResponse(messages=[Message("assistant", [fake])])
-                        return result()
-                    model._inner_get_response = spoof_response
-                async def composed(view, identity, resources):
-                    return [native_tool]
-                async def deadline(work):
-                    return await supervise(work, budget=0.1 if scenario == "deadline" else 10)
+                counts, saved, guidance = {}, [], []
                 async def converse(session_key, text, **kwargs):
-                    async with create_agent(config, client=model) as agent:
-                        response = await agent.run(text)
-                    saved[:] = response.to_dict()["messages"]
-                    return response.to_dict()
+                    process = await asyncio.create_subprocess_exec(
+                        self.orchestrator_python, "-I",
+                        str(Path(__file__).with_name("native_presentation_probe.py")),
+                        str(orchestrator), scenario,
+                        stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE, env=self.orchestrator_environment,
+                    )
+                    payload = json.dumps({
+                        "text": text, "spoof": (
+                            Path(__file__).parent / "fixtures/inline-presentation/presentation-valid.json"
+                        ).read_text(),
+                    }).encode()
+                    try:
+                        output, errors = await asyncio.wait_for(process.communicate(payload), timeout=60)
+                    finally:
+                        if process.returncode is None:
+                            process.kill()
+                            await process.wait()
+                    self.assertEqual(process.returncode, 0, errors.decode(errors="replace"))
+                    result = json.loads(output)
+                    counts.update(result["counts"])
+                    guidance.extend(result["guidance"])
+                    saved[:] = result["response"]["messages"]
+                    return result["response"]
                 self.client.converse.side_effect = converse
                 self.session["chat_profile"] = "Conversar"
-                with patch("native.agent.compose_tools", composed), patch(
-                    "native.presentation_middleware.supervise", deadline,
-                ):
-                    await native_chat.on_start()
-                    await native_chat.handle_message(SimpleNamespace(content="Compare", elements=[]))
+                await native_chat.on_start()
+                await native_chat.handle_message(SimpleNamespace(content="Compare", elements=[]))
                 live = self.messages[-1]
                 self.assertEqual(len(live["elements"]), 1 if scenario == "enabled" else 0)
                 if scenario != "spoof":
-                    self.assertEqual(counts, {AGENT_NAME: 1})
+                    self.assertEqual(counts, {agent_name: 1})
                     self.assertIn("authorized narration", live["content"])
                 if scenario == "disabled":
-                    self.assertFalse(model.guidance)
+                    self.assertFalse(guidance)
                 if scenario == "enabled":
                     self.assertEqual(live["elements"][0].props["contributions"][0]["blocks"][0]["rows"][0]["values"]["c0"],
                                      "9007199254740993.001")
