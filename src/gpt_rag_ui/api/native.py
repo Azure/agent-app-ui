@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from gpt_rag_ui.auth.entra_token import EntraTokenValidator
 from gpt_rag_ui.auth.auth_common import DelegationError
+from gpt_rag_ui.clients.native_hosted import HostedToolFailure
 from gpt_rag_ui.auth.panel_auth import validate_panel_bearer, PanelAuthError, PanelForbiddenError
 from gpt_rag_ui.clients.native_metadata import MetadataConflict
 from gpt_rag_ui.clients.native_attachments import InlineAttachment, MAX_ATTACHMENTS
@@ -73,13 +74,19 @@ def register_native_routes(app: FastAPI, service: NativeService) -> None:
         except PermissionError as exc:
             raise HTTPException(403, "Access denied.") from exc
         except DelegationError as exc:
-            raise HTTPException(403 if exc.code == "source_denied" else 401, {
+            status_code = {
+                "authentication_unavailable": 503, "source_denied": 403, "user_delegation_required": 403,
+            }.get(exc.code, 401)
+            raise HTTPException(status_code, {
                 "code": exc.code, "message": str(exc),
             }) from None
         except MetadataConflict as exc:
             raise HTTPException(409, str(exc)) from exc
         except NativeUnavailable as exc:
             raise HTTPException(503, str(exc)) from exc
+        except HostedToolFailure as exc:
+            logger.warning("Native tool failed")
+            raise HTTPException(502, {"code": "tool_failed", "message": str(exc)}) from None
         except ValueError as exc:
             raise HTTPException(422, "Invalid native operation.") from exc
         except (AzureError, OpenAIError, RpcError, TimeoutError, RuntimeError) as exc:

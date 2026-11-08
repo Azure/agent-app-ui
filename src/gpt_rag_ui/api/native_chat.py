@@ -19,7 +19,7 @@ from grpc import RpcError
 from gpt_rag_ui.auth.auth_common import DelegationError
 from gpt_rag_ui.auth.recovery import offer_auth_recovery
 from gpt_rag_ui.clients.hosted_agent_client import HostedAgentAuthenticationError
-from gpt_rag_ui.clients.native_hosted import NativeHostedClient
+from gpt_rag_ui.clients.native_hosted import NativeHostedClient, HostedToolFailure
 from gpt_rag_ui.clients.native_attachments import InlineAttachment, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS
 from gpt_rag_ui.clients.native_metadata import CosmosMetadata, MemoryMetadata, MetadataConflict
 from gpt_rag_ui.config.dependencies import get_config
@@ -182,10 +182,13 @@ async def on_start() -> None:
 
 async def on_resume(thread: ThreadDict) -> None:
     # Thread IDs remain selectors; no client-supplied userIdentifier grants access.
-    user = await principal()
-    await get_service().resume(user, thread["id"])
-    cl.user_session.set("native_session_id", thread["id"])
-    await render_progress(thread["id"], await get_service().progress(user, thread["id"]))
+    try:
+        user = await principal()
+        await get_service().resume(user, thread["id"])
+        cl.user_session.set("native_session_id", thread["id"])
+        await render_progress(thread["id"], await get_service().progress(user, thread["id"]))
+    except (DelegationError, HostedToolFailure) as exc:
+        await cl.Message(content=str(exc)).send()
 
 
 async def handle_message(message: cl.Message) -> None:
@@ -225,8 +228,9 @@ async def handle_message(message: cl.Message) -> None:
             elements = visual_elements(turn["response"])
             await cl.Message(content=content, actions=actions, elements=elements).send()
     except (DelegationError, HostedAgentAuthenticationError) as exc:
-        await offer_auth_recovery(exc.code, exc.claims_challenge, user=cl.user_session.get("user"))
-    except (PermissionError, NativeNotFound, NativeUnavailable, MetadataConflict) as exc:
+        if not await offer_auth_recovery(exc.code, exc.claims_challenge, user=cl.user_session.get("user")):
+            await cl.Message(content=str(exc)).send()
+    except (PermissionError, NativeNotFound, NativeUnavailable, MetadataConflict, HostedToolFailure) as exc:
         await cl.Message(content=str(exc)).send()
     except (ValueError, OSError) as exc:
         logger.warning("Native input denied (type=%s)", type(exc).__name__)
@@ -273,7 +277,10 @@ async def handle_action(action: cl.Action) -> None:
         else:
             raise ValueError("Ação não suportada.")
     except (DelegationError, HostedAgentAuthenticationError) as exc:
-        await offer_auth_recovery(exc.code, exc.claims_challenge, user=cl.user_session.get("user"))
+        if not await offer_auth_recovery(exc.code, exc.claims_challenge, user=cl.user_session.get("user")):
+            await cl.Message(content=str(exc)).send()
+    except HostedToolFailure as exc:
+        await cl.Message(content=str(exc)).send()
     except (PermissionError, NativeNotFound, NativeUnavailable, MetadataConflict, ValueError, KeyError) as exc:
         await cl.Message(content="Ação indisponível. Atualize a sessão.").send()
         logger.warning("Native action denied (type=%s)", type(exc).__name__)

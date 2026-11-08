@@ -23,6 +23,7 @@ from gpt_rag_ui.auth.panel_auth import PanelPrincipal
 from gpt_rag_ui.auth.auth_common import DelegationError
 from gpt_rag_ui.clients.native_durable import NativeDurableClient, scheduler_options
 from gpt_rag_ui.clients.native_hosted import NativeHostedClient, hosted_pending
+from gpt_rag_ui.clients.hosted_agent_client import HostedAgentAuthenticationError, acquire_service_identity_token
 from gpt_rag_ui.clients.native_metadata import CosmosMetadata, MemoryMetadata, MetadataConflict
 from gpt_rag_ui.config.appconfig import AppConfigClient, BASE_LABEL, NATIVE_UI_KEYS
 from gpt_rag_ui.config.errors import ConfigurationError
@@ -124,6 +125,32 @@ class NativeConfigurationTests(unittest.TestCase):
         with patch.dict(os.environ, {"ORCHESTRATION_HOST": "hosted"}), self.assertRaises(ConfigurationError):
             load_native_settings(base_config())
 
+    def test_hosted_auth_profiles_are_strict_and_structural(self):
+        config = base_config(
+            ORCHESTRATION_HOST="hosted", DURABLE_TASK_SCHEDULER_CONNECTION_STRING="",
+            HOSTED_AGENT_BASE_URL="https://agent.example.invalid/openai/v1",
+            HOSTED_WORKFLOW_BASE_URL="https://workflow.example.invalid/openai/v1",
+            HOSTED_AGENT_RESOURCE_SCOPE="https://ai.azure.com/.default",
+        )
+        delegated = load_native_settings(config)
+        self.assertEqual(delegated.auth_mode, "user_delegated")
+        config.values["HOSTED_AGENT_AUTH_MODE"] = "service_identity"
+        service = load_native_settings(config)
+        self.assertEqual(service.auth_mode, "service_identity")
+        self.assertNotEqual(delegated.structural, service.structural)
+        for invalid in ("", "managed_identity", "SERVICE_IDENTITY", "unknown"):
+            config.values["HOSTED_AGENT_AUTH_MODE"] = invalid
+            with self.subTest(invalid=invalid), self.assertRaises(ConfigurationError):
+                load_native_settings(config)
+        for configured, environment in (
+            ("user_delegated", "service_identity"), ("service_identity", "user_delegated"),
+        ):
+            config.values["HOSTED_AGENT_AUTH_MODE"] = configured
+            with patch.dict(os.environ, {"HOSTED_AGENT_AUTH_MODE": environment}), self.assertRaises(ConfigurationError):
+                load_native_settings(config)
+        with self.assertRaises(ConfigurationError):
+            load_native_settings(base_config(HOSTED_AGENT_AUTH_MODE="service_identity"))
+
     def test_nl2sql_is_not_ui_infrastructure_or_a_configuration_consumer(self):
         config = base_config(NL2SQL_ENABLED="true", NL2SQL_SOURCE_REGISTRY="cosmos")
         load_native_settings(config)
@@ -162,6 +189,133 @@ class NativeConfigurationTests(unittest.TestCase):
 
 
 class PublishedClientShapeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_service_helper_awaits_workload_credential_and_closes_on_success_or_failure(self):
+        credential = SimpleNamespace(
+            get_token=AsyncMock(return_value=SimpleNamespace(token="workload")), close=AsyncMock(),
+        )
+        with patch("gpt_rag_ui.clients.hosted_agent_client._default_credential", return_value=credential):
+            self.assertEqual("workload", await acquire_service_identity_token("https://ai.azure.com/.default"))
+            credential.get_token.assert_awaited_once_with("https://ai.azure.com/.default")
+            credential.close.assert_awaited_once()
+            credential.close.reset_mock()
+            credential.get_token.side_effect = AzureError("synthetic-credential-failure")
+            with self.assertRaises(HostedAgentAuthenticationError):
+                await acquire_service_identity_token("https://ai.azure.com/.default")
+            credential.close.assert_awaited_once()
+
+    async def test_service_identity_uses_same_responses_client_for_all_operations_without_obo(self):
+        calls = []
+        options = []
+
+        def transport(request):
+            calls.append(request)
+            if request.url.path.endswith("/input_items"):
+                return httpx.Response(200, json={"data": [], "has_more": False, "object": "list"})
+            return httpx.Response(200, json={
+                "id": "resp_1", "object": "response", "created_at": 1,
+                "status": "completed", "output": [], "model": "hosted",
+            })
+
+        def sdk(**kwargs):
+            options.append(kwargs)
+            return AsyncOpenAI(**kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(transport)))
+
+        client = NativeHostedClient(settings(
+            host="hosted", auth_mode="service_identity",
+            agent_url="https://agent.example.invalid/openai/v1",
+            workflow_url="https://workflow.example.invalid/openai/v1",
+            resource_scope="https://ai.azure.com/.default",
+        ))
+        with (
+            patch("gpt_rag_ui.clients.native_hosted.AsyncOpenAI", side_effect=sdk),
+            patch("gpt_rag_ui.clients.native_hosted.acquire_service_identity_token",
+                  AsyncMock(return_value="workload")) as service,
+            patch("gpt_rag_ui.clients.native_hosted.acquire_obo_token", AsyncMock()) as obo,
+        ):
+            for workflow in (False, True):
+                await client.create("admitted-user", workflow=workflow, text="topic")
+                await client.create("admitted-user", workflow=workflow, previous_response_id="resp_1",
+                                    replies=[{"type": "function_call_output", "call_id": "call_1", "output": "{}"}])
+                await client.retrieve("admitted-user", "resp_1", workflow=workflow)
+                await client.history("admitted-user", "resp_1", workflow=workflow)
+            obo.assert_not_awaited()
+            self.assertEqual(service.await_count, 8)
+            for call in service.await_args_list:
+                self.assertEqual(call.args, ("https://ai.azure.com/.default",))
+        self.assertEqual(len(calls), 10)
+        for request in calls:
+            self.assertEqual(request.headers["authorization"], "Bearer workload")
+            self.assertNotIn("x-ms-user-identity", request.headers)
+            self.assertTrue(request.url.path.startswith("/openai/v1/responses"))
+        for option in options:
+            self.assertEqual(option["max_retries"], 0)
+            self.assertEqual(option["timeout"].read, 120)
+            self.assertEqual(option["timeout"].connect, 10)
+        self.assertEqual([request.url.host for request in calls], [
+            *["agent.example.invalid"] * 5, *["workflow.example.invalid"] * 5,
+        ])
+
+    async def test_missing_user_and_invalid_profile_never_acquire_either_credential(self):
+        with (
+            patch("gpt_rag_ui.clients.native_hosted.acquire_service_identity_token", AsyncMock()) as service,
+            patch("gpt_rag_ui.clients.native_hosted.acquire_obo_token", AsyncMock()) as obo,
+            patch("gpt_rag_ui.clients.native_hosted.AsyncOpenAI") as sdk,
+        ):
+            for mode in ("user_delegated", "service_identity"):
+                client = NativeHostedClient(settings(host="hosted", auth_mode=mode))
+                for operation in (
+                    client.create("", workflow=False, text="topic"),
+                    client.retrieve("", "resp_1", workflow=True),
+                    client.history("", "resp_1", workflow=False),
+                ):
+                    with self.assertRaises(PermissionError):
+                        await operation
+            with self.assertRaises(PermissionError):
+                await NativeHostedClient(settings(host="hosted", auth_mode="unknown")).create(
+                    "admitted-user", workflow=False, text="topic",
+                )
+            service.assert_not_awaited()
+            obo.assert_not_awaited()
+            sdk.assert_not_called()
+
+    async def test_service_credential_failure_never_falls_back_or_requests_user_consent(self):
+        client = NativeHostedClient(settings(host="hosted", auth_mode="service_identity"))
+        for failure in (HostedAgentAuthenticationError("synthetic"), TimeoutError()):
+            with (
+                patch("gpt_rag_ui.clients.native_hosted.acquire_service_identity_token",
+                      AsyncMock(side_effect=failure)),
+                patch("gpt_rag_ui.clients.native_hosted.acquire_obo_token", AsyncMock()) as obo,
+                patch("gpt_rag_ui.clients.native_hosted.AsyncOpenAI") as sdk,
+                self.assertRaises(DelegationError) as error,
+            ):
+                await client.create("admitted-user", workflow=False, text="topic")
+            self.assertEqual(error.exception.code, "authentication_unavailable")
+            self.assertIsNone(error.exception.claims_challenge)
+            obo.assert_not_awaited()
+            sdk.assert_not_called()
+
+    async def test_service_http_auth_failures_do_not_forward_workload_claims_to_user(self):
+        client = NativeHostedClient(settings(
+            host="hosted", auth_mode="service_identity", agent_url="https://agent.example.invalid/openai/v1",
+        ))
+        for status, code in ((401, "authentication_unavailable"), (403, "source_denied")):
+            def sdk(**kwargs):
+                return AsyncOpenAI(**kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(
+                    lambda request: httpx.Response(status, json={"error": {"message": "provider-private"}}),
+                )))
+            with (
+                patch("gpt_rag_ui.clients.native_hosted.AsyncOpenAI", side_effect=sdk),
+                patch("gpt_rag_ui.clients.native_hosted.acquire_service_identity_token",
+                      AsyncMock(return_value="workload")),
+                patch("gpt_rag_ui.clients.native_hosted.acquire_obo_token", AsyncMock()) as obo,
+                self.assertRaises(DelegationError) as error,
+            ):
+                await client.retrieve("admitted-user", "resp_1", workflow=False)
+            self.assertEqual(error.exception.code, code)
+            self.assertIsNone(error.exception.claims_challenge)
+            self.assertNotIn("provider-private", str(error.exception))
+            obo.assert_not_awaited()
+
     async def test_hosted_history_and_challenge_use_actual_sdk_without_replay_or_provider_body(self):
         calls = []
         denied = False
@@ -473,6 +627,100 @@ class NativeOwnerBehaviorTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(config.refresh.call_count, 2)
 
 
+class NativeHostedOwnerProfileTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.env = patch.dict(os.environ, {}, clear=True)
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self.owner = NativePrincipal(TENANT, OID, "authenticated")
+        self.store = MemoryMetadata()
+        self.hosted = SimpleNamespace(create=AsyncMock(), retrieve=AsyncMock(), history=AsyncMock())
+        self.settings = settings(
+            host="hosted", auth_mode="service_identity", history=True, feedback=True,
+            agent_url="https://agent.example.invalid/openai/v1",
+            workflow_url="https://workflow.example.invalid/openai/v1",
+            resource_scope="https://ai.azure.com/.default",
+        )
+        self.service = NativeService(self.settings, self.store, hosted=self.hosted)
+        row = await self.service.create(self.owner, "conversational")
+        self.row = await self.store.replace({**row, "native_id": "resp_owned"})
+
+    def operations(self, principal):
+        id = self.row["id"]
+        return (
+            self.service.owned(principal, id), self.service.progress(principal, id),
+            self.service.converse(principal, id, "continue"), self.service.history(principal, id),
+            self.service.feedback(principal, id, 1, "", "resp_owned"), self.service.resume(principal, id),
+            self.service.start(principal, id, ResearchReviewStart(topic="topic")),
+            self.service.reply(principal, id, "request-1", "revision", ReviewDecision(decision="approve")),
+        )
+
+    async def test_service_mode_still_denies_missing_user_wrong_tenant_and_wrong_owner(self):
+        for principal, error in (
+            (replace(self.owner, token=""), PermissionError),
+            (replace(self.owner, tenant_id=OTHER), PermissionError),
+            (replace(self.owner, object_id=OTHER), NativeNotFound),
+        ):
+            for operation in self.operations(principal):
+                with self.assertRaises(error):
+                    await operation
+        self.assertEqual([], await self.service.list_sessions(replace(self.owner, object_id=OTHER)))
+        for principal in (replace(self.owner, token=""), replace(self.owner, tenant_id=OTHER)):
+            with self.assertRaises(PermissionError):
+                await self.service.list_sessions(principal)
+            with self.assertRaises(PermissionError):
+                await self.service.create(principal, "conversational")
+        for method in (self.hosted.create, self.hosted.retrieve, self.hosted.history):
+            method.assert_not_awaited()
+
+    async def test_redeployment_never_reopens_a_different_auth_or_publication_partition(self):
+        for changes in (
+            {"auth_mode": "user_delegated"}, {"resource_scope": "https://other.example.invalid/.default"},
+            {"agent_url": "https://other.example.invalid/openai/v1"},
+            {"token_audience": "api://other"},
+        ):
+            self.service = NativeService(replace(self.settings, **changes), self.store, hosted=self.hosted)
+            self.assertEqual([], await self.service.list_sessions(self.owner))
+            for operation in self.operations(self.owner):
+                with self.assertRaises(NativeNotFound):
+                    await operation
+        for method in (self.hosted.create, self.hosted.retrieve, self.hosted.history):
+            method.assert_not_awaited()
+
+    async def test_hot_auth_change_requires_redeployment_before_any_native_operation(self):
+        config = base_config(
+            ORCHESTRATION_HOST="hosted", DURABLE_TASK_SCHEDULER_CONNECTION_STRING="",
+            HOSTED_AGENT_BASE_URL=self.settings.agent_url, HOSTED_WORKFLOW_BASE_URL=self.settings.workflow_url,
+            HOSTED_AGENT_RESOURCE_SCOPE=self.settings.resource_scope,
+            HOSTED_AGENT_AUTH_MODE="service_identity", ENABLE_CHAT_HISTORY="true",
+        )
+        initial = load_native_settings(config)
+        self.service = NativeService(initial, self.store, hosted=self.hosted, config=config)
+        config.values["HOSTED_AGENT_AUTH_MODE"] = "user_delegated"
+        for operation in (*self.operations(self.owner), self.service.list_sessions(self.owner)):
+            with self.assertRaises(NativeUnavailable):
+                await operation
+        self.hosted.create.assert_not_awaited()
+        self.hosted.retrieve.assert_not_awaited()
+
+    async def test_missing_or_unavailable_owner_metadata_is_not_replaced_by_service_access(self):
+        for missing in ("principal_id", "publication", "kind", "host"):
+            record = {key: value for key, value in self.row.items() if key != missing}
+            with (
+                patch.object(self.store, "get", AsyncMock(return_value=record)),
+                patch.object(self.store, "list", AsyncMock(return_value=[record])),
+            ):
+                with self.assertRaises(NativeNotFound):
+                    await self.service.owned(self.owner, self.row["id"])
+                self.assertEqual([], await self.service.list_sessions(self.owner))
+        with patch.object(self.store, "get", AsyncMock(side_effect=RuntimeError("metadata unavailable"))):
+            with self.assertRaises(RuntimeError):
+                await self.service.history(self.owner, self.row["id"])
+        self.hosted.history.assert_not_awaited()
+        with self.assertRaises(NativeNotFound):
+            await self.service.owned(self.owner, "resp_owned")
+
+
 class NativeRouteTests(unittest.TestCase):
     def setUp(self):
         self.store = MemoryMetadata()
@@ -496,6 +744,20 @@ class NativeRouteTests(unittest.TestCase):
             response = self.client.get(f"/api/native/sessions/{self.row['id']}/progress")
         self.assertEqual(response.status_code, 404)
         self.service.durable.progress.assert_not_awaited()
+
+    def test_workload_authentication_unavailable_is_503_not_a_user_signin_challenge(self):
+        with (
+            patch("gpt_rag_ui.api.native.validate_panel_bearer", AsyncMock(
+                return_value=PanelPrincipal(OID, TENANT, "authenticated"),
+            )),
+            patch.object(self.service, "progress", AsyncMock(
+                side_effect=DelegationError("authentication_unavailable"),
+            )),
+        ):
+            response = self.client.get(f"/api/native/sessions/{self.row['id']}/progress")
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["detail"]["code"], "authentication_unavailable")
+        self.assertNotIn("www-authenticate", response.headers)
 
     def test_strict_business_inputs_cannot_supply_owner_or_native_id(self):
         with patch("gpt_rag_ui.api.native.validate_panel_bearer", AsyncMock(

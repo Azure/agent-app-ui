@@ -13,7 +13,9 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_serializer
 
 from gpt_rag_ui.auth.auth_common import normalize_guid, is_user_authorized
-from gpt_rag_ui.clients.native_hosted import NativeHostedClient, hosted_pending, hosted_reply
+from gpt_rag_ui.clients.native_hosted import (
+    NativeHostedClient, check_hosted_response, hosted_pending, hosted_reply,
+)
 from gpt_rag_ui.clients.native_metadata import MetadataConflict, MetadataStore
 from gpt_rag_ui.clients.native_attachments import InlineAttachment, validate_inline_turn
 from gpt_rag_ui.config.appconfig import AppConfigClient
@@ -136,7 +138,11 @@ class NativeService:
     def publication(self, application: str) -> str:
         namespace: Any
         if self.settings.host == "hosted":
-            namespace = self.settings.workflow_url if application == "workflow" else self.settings.agent_url
+            namespace = [
+                self.settings.workflow_url if application == "workflow" else self.settings.agent_url,
+                self.settings.auth_mode, self.settings.resource_scope,
+                self.settings.tenant_id, self.settings.token_audience,
+            ]
         else:
             name = self.settings.workflow_name if application == "workflow" else self.settings.agent_name
             namespace = [self.settings.scheduler_binding, name, 2]
@@ -200,6 +206,7 @@ class NativeService:
             )
             native_ref = response["id"]
             await self._commit(row, response["id"])
+            check_hosted_response(response, auth_mode=self.settings.auth_mode)
             if response.get("status") != "completed" or response.get("error"):
                 raise NativeUnavailable("Native conversation did not complete; inspect its progress.")
         else:
@@ -224,6 +231,8 @@ class NativeService:
         else:
             native_id = await self.durable.start(input.model_dump(mode="json"), row["id"])
         await self._commit(row, native_id)
+        if self.settings.host == "hosted":
+            check_hosted_response(response, auth_mode=self.settings.auth_mode)
         return await self.progress(principal, id)
 
     async def progress(self, principal: NativePrincipal, id: str) -> dict[str, Any]:
@@ -235,6 +244,7 @@ class NativeService:
             response = await self.hosted.retrieve(
                 principal.token, row["native_id"], workflow=row["application"] == "workflow",
             )
+            check_hosted_response(response, auth_mode=self.settings.auth_mode)
             pending = hosted_pending(response)
             status = "waiting_for_input" if pending else response["status"]
             output = response.get("output")
@@ -309,6 +319,8 @@ class NativeService:
             await self.durable.reply(row["native_id"], request_id, response.model_dump(mode="json"))
             native_id = row["native_id"]
         await self._commit(row, native_id)
+        if self.settings.host == "hosted":
+            check_hosted_response(result, auth_mode=self.settings.auth_mode)
         result = await self.progress(principal, id)
         # Delivery is not admission: be honest when the durable worker has not consumed it yet.
         result["delivery"] = "submitted"
@@ -337,8 +349,9 @@ class NativeService:
         return [
             {key: row[key] for key in ("id", "application", "title", "created_at", "updated_at")}
             for row in await self.metadata.list(principal.owner, "session")
-            if row.get("application") in {"conversational", "workflow"}
-            and row["host"] == self.settings.host and row["publication"] == self.publication(row["application"])
+            if row.get("principal_id") == principal.owner and row.get("kind") == "session"
+            and row.get("application") in {"conversational", "workflow"}
+            and row.get("host") == self.settings.host and row.get("publication") == self.publication(row["application"])
             and getattr(self.settings, row["application"], False)
         ]
 

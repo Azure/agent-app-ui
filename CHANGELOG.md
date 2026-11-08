@@ -25,6 +25,36 @@
   status and follow-up columns, preserving headings, exact numeric scale,
   null gaps and sorted/filtered row order.
 
+## [v3.6.0] - 2026-11-02
+
+### Added
+
+- **Optional native user delegation.** Keep authenticated UI access and
+  `user_delegated` as the default. Explicit `service_identity` uses the selected
+  workload credentials without changing conversation, citation or download
+  ownership boundaries.
+- **Safe managed Toolbox outcomes.** Report missing source delegation and tool
+  failures without exposing provider details or consent links. Never replay a
+  request or change authentication mode automatically.
+
+### Changed
+
+- **Reviewed build and storage dependencies.** Adopt setuptools 84.2.1,
+  Azure Cosmos 4.17.1 and Blob Storage 12.31.0 for the supported Python 3.12
+  application. Preserve owner-partitioned metadata, conditional writes,
+  protected downloads and all native MAF/Durable dependency pins.
+- **Refresh engineering action pins.** Regenerate the issue classifier with
+  gh-aw 0.93.3 and immutable action references. Keep the protected acceptance
+  workflow and the authored one-issue classification policy unchanged.
+
+### Migration and recovery
+
+- Adopt with platform and orchestrator v7.1.0. OBO remains the default.
+  Explicit service identity changes outbound access, not user admission or
+  document entitlements. Redeploy the coordinated combination when changing
+  profiles and start new native sessions. Do not migrate old owner mappings
+  or replay transcripts. Roll back the prior coordinated combination.
+
 ## [v3.5.0] - 2026-10-31
 
 ### Added
