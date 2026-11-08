@@ -20,6 +20,33 @@ spec.loader.exec_module(quality)
 
 
 class QualityPolicyTests(unittest.TestCase):
+    def test_schema_type_stubs_require_exact_pin_without_changing_core_tools(self):
+        root = SCRIPT.parents[2]
+        policy = json.loads((root / ".quality/policy.json").read_text(encoding="utf-8"))
+        policy["toolchain"].pop("types-jsonschema", None)
+        quality.validate_record("policy", policy)
+        original = dict(policy["toolchain"])
+        policy["toolchain"]["types-jsonschema"] = "4.26.0.20261006"
+        quality.validate_record("policy", policy)
+        self.assertEqual(original, {
+            name: pin for name, pin in policy["toolchain"].items()
+            if name != "types-jsonschema"
+        })
+        for pin in (">=4.23.0,<5", "latest", "4.26.0", "4.26.0.20261006.post1"):
+            with self.subTest(pin=pin):
+                candidate = copy.deepcopy(policy)
+                candidate["toolchain"]["types-jsonschema"] = pin
+                with self.assertRaises(quality.PolicyError):
+                    quality.validate_record("policy", candidate)
+        for name in quality.TOOLS:
+            candidate = copy.deepcopy(policy)
+            del candidate["toolchain"][name]
+            with self.assertRaises(quality.PolicyError):
+                quality.validate_record("policy", candidate)
+        policy["toolchain"]["unapproved-tool"] = "1.0.0"
+        with self.assertRaises(quality.PolicyError):
+            quality.validate_record("policy", policy)
+
     def test_technical_decisions_match_exact_eligible_handlers_without_human_approval(self):
         root = SCRIPT.parents[2]
         registry = json.loads((root / ".quality/exceptions.json").read_text(encoding="utf-8"))["entries"]
