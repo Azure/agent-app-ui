@@ -1,0 +1,2 @@
+# Browser test tooling only. Never installed into the production image.
+playwright==1.61.0
