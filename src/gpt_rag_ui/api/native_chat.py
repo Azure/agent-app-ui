@@ -65,7 +65,7 @@ async def principal() -> NativePrincipal:
     )
 
 
-def text_output(value: Any, admitted: bool = False) -> str:
+def text_output(value: Any) -> str:
     """Render native text/result shapes without executing HTML/model content."""
     if isinstance(value, str) and value.lstrip().startswith("{"):
         try:
@@ -74,7 +74,7 @@ def text_output(value: Any, admitted: bool = False) -> str:
             parsed = None
         if isinstance(parsed, dict) and parsed.get("status") in {"approved", "rejected"} and isinstance(parsed.get("draft"), str):
             return text_projection(parsed)
-    return text_projection(value, admitted)
+    return text_projection(value)
 
 
 async def display_output(id: str, value: Any) -> str:
@@ -90,9 +90,9 @@ async def display_output(id: str, value: Any) -> str:
     references: set[str] = set()
     content = replace_source_reference_links(text_output(value), references, **binding)
 
-    def annotations(item: Any, admitted: bool = False) -> list[dict[str, Any]]:
+    def collect_annotations(item: Any, admitted: bool = False) -> list[dict[str, Any]]:
         if isinstance(item, list):
-            return [citation for child in item for citation in annotations(child, admitted)]
+            return [citation for child in item for citation in collect_annotations(child, admitted)]
         if not isinstance(item, dict):
             return []
         if item.get("type") in ("progress", "response.in_progress", "workflow_progress"):
@@ -107,8 +107,11 @@ async def display_output(id: str, value: Any) -> str:
         ]
         for key in ("output", "messages", "content", "contents", "items", "response", "data", "conversationHistory"):
             if key in item:
-                found.extend(annotations(item[key], admitted))
+                found.extend(collect_annotations(item[key], admitted))
         return found
+
+    def annotations(item: Any) -> list[dict[str, Any]]:
+        return collect_annotations(item)
 
     return content + format_hosted_citation_sources(annotations(value), references, **binding)
 

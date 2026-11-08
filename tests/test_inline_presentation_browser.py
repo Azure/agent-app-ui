@@ -1,6 +1,8 @@
 """Offline smoke using the installed Chainlit runner and existing Chromium."""
 import copy
 import json
+import os
+import platform
 import re
 import unittest
 from pathlib import Path
@@ -13,6 +15,9 @@ from gpt_rag_ui.services.native_presentation import rest_projection, text_projec
 
 class InlineBrowserTests(unittest.TestCase):
     def test_actual_jsx_four_views_exact_table_svg_and_followup(self):
+        capture = os.environ.get("INLINE_CAPTURE_SCREENSHOTS") == "1"
+        measure = os.environ.get("INLINE_MEASURE_RENDER") == "1"
+        render_samples = []
         assets = Path(chainlit.__file__).parent / "frontend/dist/assets"
         bundle = next(assets.glob("index-*.js"))
         installed = bundle.read_text(encoding="utf-8")
@@ -72,6 +77,43 @@ class InlineBrowserTests(unittest.TestCase):
             "incomplete": carrier(raw[:-5]),
             "plain": carrier("Ordinary authorized text; no presentation available."),
         }
+        limited = copy.deepcopy(envelope)
+        contribution = limited["contributions"][0]
+        table, chart = contribution["blocks"][1:3]
+        original_rows = copy.deepcopy(table["rows"])
+        table["rows"] = [
+            {**copy.deepcopy(original_rows[index % 3]), "id": f"limit-row-{index}"}
+            for index in range(500)
+        ]
+        chart["categories"] = [
+            {"label": original_rows[index % 3]["values"]["month"], "sourceRowId": f"point-{index}"}
+            for index in range(126)
+        ]
+        for index, category in enumerate(chart["categories"]):
+            if index >= 3:
+                category["label"] += f" {index}"
+        template = copy.deepcopy(chart["series"][0])
+        chart["series"] = [
+            {**copy.deepcopy(template), "label": f"Revenue {series}",
+             "values": [None if index == 1 else original_rows[index % 3]["values"]["revenue"]
+                        for index in range(126)]}
+            for series in range(8)
+        ]
+        # 125 non-null values in each of 8 series: exactly 1,000 points.
+        for series in chart["series"]:
+            series["values"] = [("9.750" if value is None and index != 1 else value)
+                                for index, value in enumerate(series["values"])]
+        for index in range(6):
+            block = copy.deepcopy(contribution["blocks"][0])
+            block["blockId"] = f"limit-card-{index}"
+            contribution["blocks"].append(block)
+        limit_wire = json.dumps(limited, separators=(",", ":"))
+        self.assertLessEqual(len(limit_wire.encode("utf-8")), 262144)
+        limit_projection = rest_projection(carrier(limit_wire))["presentations"][0]
+        self.assertEqual(len(limit_projection["contributions"][0]["blocks"]), 10)
+        self.assertEqual(len(limit_projection["contributions"][0]["blocks"][1]["rows"]), 500)
+        self.assertEqual(len(limit_projection["contributions"][0]["blocks"][2]["series"]), 8)
+        cases["limits"] = carrier(limit_wire)
         artifacts = root / ".artifacts/inline-presentation-playwright"
         artifacts.mkdir(parents=True, exist_ok=True)
         requests, errors = [], []
@@ -93,7 +135,8 @@ class InlineBrowserTests(unittest.TestCase):
                             context = browser.new_context(viewport={"width": 960, "height": 900})
                             context.set_default_timeout(5000)
                             context.grant_permissions(["clipboard-read", "clipboard-write"])
-                            context.tracing.start(screenshots=True, snapshots=True, sources=True)
+                            if capture:
+                                context.tracing.start(screenshots=True, snapshots=True, sources=True)
                             page = context.new_page()
                             page.on("pageerror", lambda error: errors.append(str(error)))
                             html = f'<html class="{"dark" if dark else ""}"><head><style>{css}</style></head><body><div id="root"></div><script type="module" src="/assets/{bundle.name}"></script></body></html>'
@@ -129,6 +172,7 @@ class InlineBrowserTests(unittest.TestCase):
                             chart_type = "line" if embedded else "grouped_bar" if dark else "bar"
                             frame.evaluate("""({source, chartType}) => {
                                 window.sent=[]; window.failures=[];
+                                window.renderSource=source; window.renderChartType=chartType;
                                 const {React,createRoot,Runner,imports}=window.nativeSmoke;
                                 const root=createRoot(document.getElementById('root'));
                                 window.renderScenario=async name => {
@@ -155,6 +199,63 @@ class InlineBrowserTests(unittest.TestCase):
                             self.assertIn("Trend: down", target.locator("body").inner_text())
                             self.assertIn("Revenue: — USD", target.locator("body").inner_text())
                             self.assertEqual(target.locator("svg circle" if embedded else "svg rect").count(), 2)
+                            if measure:
+                                print("T058 device", json.dumps({
+                                    "os": platform.platform(), "python": platform.python_version(),
+                                    "chromium": browser.version, "viewport": [960, 900],
+                                    "embedded": embedded, "dark": dark, "chart": chart_type,
+                                }))
+                                for _ in range(7 if embedded else 8):
+                                    trial = len(render_samples) + 1
+                                    sample = frame.evaluate("""async trial => {
+                                      // Native packet/source waits finish before the timer.
+                                      const atLimits=trial%5===0;
+                                      const packet=await (await fetch('/test-api/'+(atLimits?'limits':'valid'))).json();
+                                      const projection=packet.presentations[0];
+                                      for(const c of projection.contributions)
+                                        for(const b of c.blocks) if(b.type==='chart') b.chartType=window.renderChartType;
+                                      const old=document.getElementById('root');
+                                      const {React,createRoot,Runner,imports}=window.nativeSmoke;
+                                      const node=document.createElement('div');
+                                      old.replaceChildren(node);
+                                      const root=createRoot(node);
+                                      const started=performance.now();
+                                      root.render(React.createElement('section', {},
+                                        React.createElement('p', {}, packet.text),
+                                        React.createElement(Runner, {
+                                        key:'render-'+trial, code:window.renderSource,
+                                        scope:{import:imports, props:projection,
+                                          sendUserMessage:()=>Promise.resolve()},
+                                        onRendered:error=>{if(error) window.failures.push(String(error));}
+                                      })));
+                                      await new Promise((resolve,reject)=>{
+                                        const check=()=>{
+                                          const text=node.textContent;
+                                          const svg=node.querySelector('svg');
+                                          const complete=node.querySelectorAll('.presentation-block').length>=(atLimits?9:3)
+                                            && node.querySelectorAll('table tbody tr').length>=(atLimits?626:6)
+                                            && node.querySelector('dl')
+                                            && text.includes('9.750') && text.includes('January')
+                                            && text.includes('Trend: down')
+                                            && text.includes(atLimits?'Revenue 0: — USD':'Revenue: — USD')
+                                            && text.includes('Compare these months with the same period last year.')
+                                            && svg && svg.getBoundingClientRect().height>0;
+                                          if(complete) requestAnimationFrame(()=>requestAnimationFrame(resolve));
+                                          else if(performance.now()-started>5000) reject(Error('Incomplete content: '+text));
+                                          else requestAnimationFrame(check);
+                                        };
+                                        requestAnimationFrame(check);
+                                      });
+                                      const elapsed=performance.now()-started;
+                                      root.unmount();
+                                      return {trial, milliseconds:elapsed};
+                                    }""", trial)
+                                    render_samples.append(sample["milliseconds"])
+                                    print(f"T058 R{trial:02d} embedded={embedded} dark={dark} "
+                                          f"complete-content={sample['milliseconds']:.3f}ms")
+                                self.assertEqual(frame.evaluate("window.failures"), [])
+                                context.close()
+                                continue
                             chart_value = target.locator("td[tabindex='0']").first
                             chart_value.focus()
                             chart_value.press("Tab")
@@ -220,7 +321,8 @@ class InlineBrowserTests(unittest.TestCase):
                                     frame.evaluate("document.documentElement.clientWidth") + 1,
                                 )
                                 suffix = "-mobile" if mobile else ""
-                                page.screenshot(path=str(artifacts / f"{name}{suffix}.png"), full_page=True)
+                                if capture:
+                                    page.screenshot(path=str(artifacts / f"{name}{suffix}.png"), full_page=True)
                             frame.evaluate("name => window.renderScenario(name)", "wide")
                             target.get_by_text("LongLabel_" + "x" * 1500, exact=True).wait_for()
                             layout = frame.evaluate("""() => ({
@@ -250,14 +352,21 @@ class InlineBrowserTests(unittest.TestCase):
                                         self.assertEqual(target.get_by_role("button", name="Copy visible rows").count(), 0)
                                     else:
                                         self.assertEqual(target.locator("svg,table,dl").count(), 0)
-                                        page.screenshot(path=str(artifacts / f"{name}-fallback.png"), full_page=True)
+                                        if capture:
+                                            page.screenshot(path=str(artifacts / f"{name}-fallback.png"), full_page=True)
                                 else:
                                     target.locator("#fallback").wait_for()
                                     self.assertEqual(target.locator("svg,table,dl,button").count(), 0)
                             self.assertEqual(frame.evaluate("window.failures"), [])
-                            context.tracing.stop(path=str(artifacts / f"{name}.zip"))
+                            if capture:
+                                context.tracing.stop(path=str(artifacts / f"{name}.zip"))
                             context.close()
                 self.assertEqual(errors, [])
                 self.assertEqual(requests, [], "Renderer must not request external resources")
+                if measure:
+                    self.assertEqual(len(render_samples), 30)
+                    passing = sum(value <= 1000 for value in render_samples)
+                    self.assertGreaterEqual(passing / 30, 0.95)
+                    print(f"T058 result: {passing}/30 <=1000ms; no screenshots captured")
             finally:
                 browser.close()

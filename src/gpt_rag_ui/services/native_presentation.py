@@ -222,7 +222,14 @@ def text_projection(value: Any, admitted: bool = False) -> str:
     if not isinstance(value, dict):
         return ""
     if isinstance(value.get("draft"), str):
-        return f"{value.get('status', 'Revisão')}\n\n{value['draft']}"
+        text = f"{value.get('status', 'Revisão')}\n\n{value['draft']}"
+        # Reuse the typed-result admission boundary, including future-version
+        # markdown. A text-only reader must not lose saved source values.
+        for presentation in _presentations(value):
+            markdown = presentation["markdown"]
+            if markdown and markdown not in text:
+                text += "\n\n" + markdown
+        return text
     if "role" in value:
         admitted = value["role"] == "assistant" and value.get("type") in (None, "message")
     if value.get("type", value.get("$type")) in ("text", "output_text"):

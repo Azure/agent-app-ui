@@ -138,7 +138,8 @@ class NativeHistoryTests(unittest.IsolatedAsyncioTestCase):
         saved = await fresh().history(self.owner, row["id"])
         projected = presentations(saved)
         expected = scenario in ("visual", "future_block")
-        self.assertEqual(len(projected), int(expected), (case_id, host, application, scenario))
+        self.assertEqual(len(projected), int(expected or scenario == "future_version"),
+                         (case_id, host, application, scenario))
         if expected:
             self.assertEqual(projected[0]["presentationId"], envelope["presentationId"])
             self.assertEqual(projected[0]["markdown"], self.fixture["markdown"])
@@ -146,6 +147,7 @@ class NativeHistoryTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("9.750", json.dumps(projected))
             self.assertNotIn("untrusted()", json.dumps(projected))
         if scenario == "future_version":
+            self.assertEqual(projected[0]["contributions"], [])
             self.assertIn(self.fixture["markdown"], text_projection(saved))
         if scenario == "legacy":
             self.assertIn(f"Readable review {case_id}" if application == "workflow"
@@ -176,7 +178,8 @@ class NativeHistoryTests(unittest.IsolatedAsyncioTestCase):
                        "content": [{"type": "output_text", "text": json.dumps(business)}]}
             self.assertEqual(len(presentations(message)), 1 if role == "assistant" else 0)
             if role == "assistant":
-                self.assertEqual(text_projection(message), "approved\n\nReadable review")
+                self.assertEqual(text_projection(message),
+                                 "approved\n\nReadable review\n\n" + self.fixture["markdown"])
                 self.assertEqual(presentations([message, message])[0]["nativeMessageId"], "native-message")
                 self.assertEqual(len(presentations([message, message])), 1)
         for invalid in (dict(business, status="running"), dict(business, topic=42)):
