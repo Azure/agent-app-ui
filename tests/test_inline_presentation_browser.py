@@ -166,9 +166,11 @@ class InlineBrowserTests(unittest.TestCase):
                             if embedded:
                                 page.evaluate("html => { const frame=document.createElement('iframe'); frame.id='embedded'; frame.style.cssText='width:100%;height:1600px;border:0'; frame.srcdoc=html; document.body.replaceChildren(frame); }", html)
                                 target = page.frame_locator("#embedded")
-                            target.locator("#root").wait_for(state="attached")
+                            # Installed application bootstrap is outside render timing.
+                            # Keep bounded startup separate from the 5s interaction cap.
+                            target.locator("#root").wait_for(state="attached", timeout=30000)
                             frame = page.frames[-1] if embedded else page.main_frame
-                            frame.wait_for_function("window.nativeSmoke")
+                            frame.wait_for_function("window.nativeSmoke", timeout=30000)
                             chart_type = "line" if embedded else "grouped_bar" if dark else "bar"
                             frame.evaluate("""({source, chartType}) => {
                                 window.sent=[]; window.failures=[];

@@ -25,7 +25,8 @@ from test_native_ui import settings, NativePrincipal, TENANT, OID, OTHER
 
 
 FRESH_HISTORY_CASES = tuple(
-    (f"H{index:02d}", host, application, scenario)
+    (f"H{index:02d}", host, application,
+     "multi_agent" if application == "workflow" and scenario == "visual" else scenario)
     for index, (host, application, scenario) in enumerate(
         ((host, application, scenario)
          for host in ("hosted", "durable")
@@ -47,6 +48,26 @@ class NativeHistoryTests(unittest.IsolatedAsyncioTestCase):
         """New native state, owner mapping, service and public SDK readers per case."""
         envelope = copy.deepcopy(self.fixture)
         envelope["presentationId"] = f"presentation-{case_id}"
+        if scenario == "multi_agent":
+            extra = copy.deepcopy(envelope["contributions"][0])
+            extra["agentId"], extra["workflowOrdinal"] = "finance", 1
+            extra["contributionId"] += "-finance"
+
+            def distinct_source(value):
+                if isinstance(value, dict):
+                    for key, item in value.items():
+                        if key == "sourceId":
+                            value[key] = item + "-finance"
+                        else:
+                            distinct_source(item)
+                elif isinstance(value, list):
+                    for item in value:
+                        distinct_source(item)
+
+            distinct_source(extra)
+            for block in extra["blocks"]:
+                block["blockId"] += "-finance"
+            envelope["contributions"].append(extra)
         if scenario == "future_block":
             envelope["contributions"][0]["blocks"].append({
                 "type": "future", "blockId": f"future-{case_id}",
@@ -137,7 +158,7 @@ class NativeHistoryTests(unittest.IsolatedAsyncioTestCase):
         await writer._commit(await writer._lock(row), f"resp_{case_id}" if host == "hosted" else row["id"])
         saved = await fresh().history(self.owner, row["id"])
         projected = presentations(saved)
-        expected = scenario in ("visual", "future_block")
+        expected = scenario in ("visual", "multi_agent", "future_block")
         self.assertEqual(len(projected), int(expected or scenario == "future_version"),
                          (case_id, host, application, scenario))
         if expected:
@@ -146,6 +167,11 @@ class NativeHistoryTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(projected[0]["contributions"][0]["blocks"]), 4)
             self.assertIn("9.750", json.dumps(projected))
             self.assertNotIn("untrusted()", json.dumps(projected))
+        if scenario == "multi_agent":
+            self.assertEqual(projected[0]["contributions"], envelope["contributions"])
+            self.assertEqual([c["workflowOrdinal"] for c in projected[0]["contributions"]], [0, 1])
+            self.assertEqual(len({c["sourceRefs"][0]["sourceId"]
+                                  for c in projected[0]["contributions"]}), 2)
         if scenario == "future_version":
             self.assertEqual(projected[0]["contributions"], [])
             self.assertIn(self.fixture["markdown"], text_projection(saved))
