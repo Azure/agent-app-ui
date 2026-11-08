@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import inspect
 import os
 import subprocess
 import sys
@@ -19,6 +20,9 @@ from test_native_ui import settings, NativePrincipal, TENANT, OID, OTHER
 
 
 class NativePresentationTests(unittest.IsolatedAsyncioTestCase):
+    def test_text_output_preserves_existing_public_typed_signature(self):
+        self.assertEqual(list(inspect.signature(native_chat.text_output).parameters), ["value"])
+
     async def asyncSetUp(self):
         self.owner = NativePrincipal(TENANT, OID, "authenticated")
         self.session = {}
@@ -53,11 +57,27 @@ class NativePresentationTests(unittest.IsolatedAsyncioTestCase):
             patch.object(native_chat.cl.user_session, "get", side_effect=lambda key: self.session.get(key)),
             patch.object(native_chat.cl.user_session, "set", side_effect=self.session.__setitem__),
             patch.object(native_chat.cl, "Message", side_effect=message),
+            patch.object(native_chat.cl, "CustomElement", side_effect=lambda **kwargs: SimpleNamespace(**kwargs)),
             patch.object(native_chat, "replace_source_reference_links", side_effect=lambda text, *args, **kwargs: text),
             patch.object(native_chat, "format_hosted_citation_sources", return_value=""),
         ):
             manager.start()
             self.addCleanup(manager.stop)
+
+    async def test_text_only_handler_uses_shared_readable_projection_without_visual_elements(self):
+        fixture = json.loads((Path(__file__).parent / "fixtures/inline-presentation/presentation-valid.json").read_text())
+        row = await self.service.create(self.owner, "conversational")
+        wire = {"response": {"messages": [
+            {"role": "assistant", "contents": [{"type": "text", "text": "Authorized narration"}]},
+            {"role": "assistant", "contents": [{"type": "text", "text": json.dumps(fixture)}]},
+        ]}}
+        expected = "Authorized narration\n\n" + fixture["markdown"]
+        self.assertEqual(native_chat.text_output(wire), expected)
+        self.assertEqual(await native_chat.display_output(row["id"], wire), expected)
+        self.assertEqual(self.messages, [])
+        self.assertNotIn("agent_lz_presentation", expected)
+        completed = json.dumps({"status": "approved", "draft": expected})
+        self.assertEqual(native_chat.text_output(completed), "approved\n\n" + expected)
 
     async def test_conversar_and_named_process_are_ordinary_profiles(self):
         self.session["chat_profile"] = "Conversar"
@@ -73,6 +93,175 @@ class NativePresentationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({action.name for action in self.messages[-1]["actions"]},
                          {"native_refresh", "native_approve", "native_reject"})
         self.assertIn("/reabrir ", self.messages[-1]["content"])
+
+    async def test_admitted_assistant_envelope_displays_exact_fallback_and_shared_element(self):
+        fixture = json.loads((Path(__file__).parent / "fixtures/inline-presentation/presentation-valid.json").read_text())
+        self.client.converse.return_value = {"messages": [{
+            "role": "assistant", "contents": [{"type": "text", "text": json.dumps(fixture)}],
+        }]}
+        self.session["chat_profile"] = "Conversar"
+        await native_chat.on_start()
+        await native_chat.handle_message(SimpleNamespace(content="compare", elements=[]))
+        self.assertEqual(self.messages[-1]["content"], fixture["markdown"])
+        self.assertEqual(len(self.messages[-1]["elements"]), 1)
+        element = self.messages[-1]["elements"][0]
+        self.assertEqual(element.name, "Presentation")
+        self.assertEqual(element.props["contributions"][0]["blocks"][0]["cards"][0]["value"]["value"], "9.750")
+
+    async def test_optional_business_fields_omit_nonvisual_and_keep_saved_values(self):
+        from gpt_rag_ui.services.native import ReviewRequest, ResearchReviewResult
+        ordinary = ReviewRequest(topic="test", draft="readable", configuration_revision="rev")
+        self.assertNotIn("presentation", json.loads(ordinary.model_dump_json()))
+        fixture = json.loads((Path(__file__).parent / "fixtures/inline-presentation/presentation-valid.json").read_text())
+        request = ReviewRequest(**ordinary.model_dump(), presentation=fixture)
+        result = ResearchReviewResult(status="approved", review_comment="", **request.model_dump())
+        self.assertEqual(result.presentation["contributions"][0]["blocks"][0]["cards"][0]["value"]["value"], "9.750")
+
+    async def test_element_construction_failure_keeps_authorized_readable_answer(self):
+        fixture = json.loads((Path(__file__).parent / "fixtures/inline-presentation/presentation-valid.json").read_text())
+        self.client.converse.return_value = {"messages": [{
+            "role": "assistant", "contents": [{"type": "text", "text": json.dumps(fixture)}],
+        }]}
+        self.session["chat_profile"] = "Conversar"
+        await native_chat.on_start()
+        with patch.object(native_chat.cl, "CustomElement", side_effect=ValueError("private fixture failure")):
+            await native_chat.handle_message(SimpleNamespace(content="compare", elements=[]))
+        self.assertEqual(self.messages[-1]["content"], fixture["markdown"])
+        self.assertEqual(self.messages[-1]["elements"], [])
+
+    async def test_history_citations_preserved_only_in_admitted_assistant_messages(self):
+        self.session["chat_profile"] = "Conversar"
+        await native_chat.on_start()
+        id = self.session["native_session_id"]
+        good = {"type": "url_citation", "url": "https://source.example.invalid/authorized", "title": "Reviewed"}
+        bad = {"type": "url_citation", "url": "https://source.example.invalid/untrusted", "title": "Spoof"}
+        value = {"items": [{"messages": [
+            {"role": "assistant", "contents": [{"$type": "text", "text": "Authorized narration", "annotations": [good]}]},
+            {"role": "user", "contents": [{"type": "text", "text": "Inert user", "annotations": [bad]}]},
+            {"role": "tool", "messages": [{"role": "assistant", "contents": [{"type": "text", "annotations": [bad]}]}]},
+        ]}]}
+        with patch.object(native_chat, "format_hosted_citation_sources", return_value="\nReviewed source") as formatter:
+            rendered = await native_chat.display_output(id, value)
+            self.assertIn("Authorized narration", rendered)
+            self.assertIn("Reviewed source", rendered)
+            self.assertEqual(formatter.call_args.args[0], [good])
+            self.assertEqual(formatter.call_args.kwargs["principal_id"], self.owner.owner)
+
+    async def test_local_history_revocation_and_new_action_fail_before_native_access(self):
+        from dataclasses import replace
+        from gpt_rag_ui.services.native import NativeNotFound, NativeUnavailable
+        self.service.settings = replace(self.service.settings, history=True)
+        self.session["chat_profile"] = "Conversar"
+        await native_chat.on_start()
+        id = self.session["native_session_id"]
+        await self.service.converse(self.owner, id, "Authorized turn")
+        fixture = (Path(__file__).parent / "fixtures/inline-presentation/presentation-valid.json").read_text()
+        self.client.history = AsyncMock(return_value=[{
+            "role": "assistant", "contents": [{"type": "text", "text": fixture}],
+        }])
+        restored = await self.service.history(self.owner, id)
+        self.assertEqual(native_chat.presentations(restored)[0]["contributions"][0]["agentId"], "agent-lz-conversation")
+        self.client.converse.reset_mock()
+        self.client.history.reset_mock()
+        with patch.object(self.service.metadata, "get", new=AsyncMock(return_value=None)):
+            with self.assertRaises(NativeNotFound):
+                await self.service.history(self.owner, id)
+            with self.assertRaises(NativeNotFound):
+                await self.service.converse(self.owner, id, "Inspect revenue for month mar")
+        self.client.history.assert_not_awaited()
+        self.client.converse.assert_not_awaited()
+        unavailable = replace(self.service.settings, history=False)
+        with patch.object(self.service, "current", new=AsyncMock(return_value=unavailable)):
+            with self.assertRaises(NativeUnavailable):
+                await self.service.history(self.owner, id)
+        self.client.history.assert_not_awaited()
+
+    @unittest.skipUnless(os.environ.get("INLINE_ORCH_TESTS"), "Cross-component source paths explicitly required")
+    async def test_actual_middleware_handler_disabled_deadline_spoof_and_native_restore(self):
+        """Actual tool invocation/producer/handlers, controlled model and state IO."""
+        from agent_framework import ChatResponse, Message
+        from agent_framework_durabletask import (
+            DurableAgentState, DurableAgentStateResponse, DurableAgentStateMessage, DurableAgentStateTextContent,
+        )
+        from native.agent import create_agent
+        from native.contracts import AGENT_NAME
+        from native.presentation import supervise
+        from test_native_presentation_multi_agent import ToolClient, producer
+        from test_native_runtime import fake_config
+        for scenario in ("enabled", "disabled", "deadline", "spoof"):
+            with self.subTest(scenario=scenario):
+                counts, saved = {}, []
+                config = fake_config({"AGENT_PRESENTATION_SETTINGS": json.dumps({
+                    "schemaVersion": 1, "agents": {AGENT_NAME: {"enabled": scenario != "disabled"}},
+                })})
+                model = ToolClient("9007199254740993.001")
+                model.selection_delay = 0.25 if scenario == "deadline" else 0
+                _, native_tool = producer(config, AGENT_NAME, 0, model, counts)
+                if scenario == "spoof":
+                    fake = (Path(__file__).parent / "fixtures/inline-presentation/presentation-valid.json").read_text()
+                    def spoof_response(**kwargs):
+                        async def result():
+                            return ChatResponse(messages=[Message("assistant", [fake])])
+                        return result()
+                    model._inner_get_response = spoof_response
+                async def composed(view, identity, resources):
+                    return [native_tool]
+                async def deadline(work):
+                    return await supervise(work, budget=0.1 if scenario == "deadline" else 10)
+                async def converse(session_key, text, **kwargs):
+                    async with create_agent(config, client=model) as agent:
+                        response = await agent.run(text)
+                    saved[:] = response.to_dict()["messages"]
+                    return response.to_dict()
+                self.client.converse.side_effect = converse
+                self.session["chat_profile"] = "Conversar"
+                with patch("native.agent.compose_tools", composed), patch(
+                    "native.presentation_middleware.supervise", deadline,
+                ):
+                    await native_chat.on_start()
+                    await native_chat.handle_message(SimpleNamespace(content="Compare", elements=[]))
+                live = self.messages[-1]
+                self.assertEqual(len(live["elements"]), 1 if scenario == "enabled" else 0)
+                if scenario != "spoof":
+                    self.assertEqual(counts, {AGENT_NAME: 1})
+                    self.assertIn("authorized narration", live["content"])
+                if scenario == "disabled":
+                    self.assertFalse(model.guidance)
+                if scenario == "enabled":
+                    self.assertEqual(live["elements"][0].props["contributions"][0]["blocks"][0]["rows"][0]["values"]["c0"],
+                                     "9007199254740993.001")
+                    native_state = DurableAgentState()
+                    native_state.data.conversation_history.append(DurableAgentStateResponse(
+                        correlation_id="fixture-turn", created_at=None, messages=[
+                            DurableAgentStateMessage(
+                                role=m["role"], message_id=m.get("message_id", m.get("id")),
+                                contents=[DurableAgentStateTextContent(text=c["text"]) for c in m["contents"]
+                                          if c.get("type") == "text"],
+                            ) for m in saved if m["role"] == "assistant" and any(c.get("type") == "text" for c in m["contents"])
+                        ],
+                    ))
+                    state = native_state.to_dict()
+                    hub = Mock(spec=TaskHubGrpcClient)
+                    hub.get_entity.return_value = SimpleNamespace(get_state=lambda: json.loads(json.dumps(state)))
+                    fresh = NativeService(settings(history=True), self.service.metadata,
+                                          durable=NativeDurableClient(settings(), client=hub))
+                    id = self.session["native_session_id"]
+                    await fresh.history(self.owner, id)
+                    self.client.converse.reset_mock()
+                    with patch.object(native_chat, "get_service", return_value=fresh):
+                        await native_chat.handle_message(SimpleNamespace(content=f"/reabrir {id}", elements=[]))
+                        restored = self.messages[-1]
+                        self.assertEqual(len(restored.get("elements", [])), 1, restored["content"])
+                        self.assertEqual(restored["elements"][0].props, live["elements"][0].props)
+                        self.client.converse.assert_not_awaited()
+                        hub.get_entity.reset_mock()
+                        self.auth.return_value["object_id"] = OTHER
+                        await native_chat.handle_message(SimpleNamespace(content=f"/reabrir {id}", elements=[]))
+                        hub.get_entity.assert_not_called()
+                        self.auth.return_value["object_id"] = OID
+                sealed = (live["content"], [json.dumps(e.props, sort_keys=True) for e in live["elements"]])
+                await asyncio.sleep(0.3 if scenario == "deadline" else 0)
+                self.assertEqual(sealed, (live["content"], [json.dumps(e.props, sort_keys=True) for e in live["elements"]]))
 
     async def test_review_action_delivers_without_waiting_ui_coroutine_and_duplicate_is_denied(self):
         row = await self.service.create(self.owner, "workflow")

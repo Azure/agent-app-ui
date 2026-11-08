@@ -25,6 +25,7 @@ from gpt_rag_ui.clients.native_metadata import CosmosMetadata, MemoryMetadata, M
 from gpt_rag_ui.config.dependencies import get_config
 from gpt_rag_ui.config.native import load_native_settings
 from gpt_rag_ui.services.citations import replace_source_reference_links, format_hosted_citation_sources
+from gpt_rag_ui.services.native_presentation import presentations, text_projection
 from gpt_rag_ui.services.native import (
     NativeService, NativePrincipal, NativeNotFound, NativeUnavailable,
     ResearchReviewStart, ReviewDecision,
@@ -64,29 +65,16 @@ async def principal() -> NativePrincipal:
     )
 
 
-def text_output(value: Any) -> str:
+def text_output(value: Any, admitted: bool = False) -> str:
     """Render native text/result shapes without executing HTML/model content."""
-    if isinstance(value, str):
-        if value.lstrip().startswith("{"):
-            try:
-                result = json.loads(value)
-            except ValueError:
-                return value
-            if isinstance(result, dict) and result.get("status") in {"approved", "rejected"} and isinstance(result.get("draft"), str):
-                return text_output(result)
-        return value
-    if isinstance(value, list):
-        return "\n\n".join(filter(None, (text_output(item) for item in value)))
-    if not isinstance(value, dict):
-        return ""
-    if "draft" in value:
-        return f"{value.get('status', 'Revisão')}\n\n{value['draft']}"
-    if value.get("type") in {"output_text", "text"}:
-        return value.get("text", "")
-    for key in ("output", "messages", "content", "contents"):
-        if key in value:
-            return text_output(value[key])
-    return ""
+    if isinstance(value, str) and value.lstrip().startswith("{"):
+        try:
+            parsed = json.loads(value)
+        except ValueError:
+            parsed = None
+        if isinstance(parsed, dict) and parsed.get("status") in {"approved", "rejected"} and isinstance(parsed.get("draft"), str):
+            return text_projection(parsed)
+    return text_projection(value, admitted)
 
 
 async def display_output(id: str, value: Any) -> str:
@@ -102,24 +90,48 @@ async def display_output(id: str, value: Any) -> str:
     references: set[str] = set()
     content = replace_source_reference_links(text_output(value), references, **binding)
 
-    def annotations(item: Any) -> list[dict[str, Any]]:
+    def annotations(item: Any, admitted: bool = False) -> list[dict[str, Any]]:
         if isinstance(item, list):
-            return [citation for child in item for citation in annotations(child)]
+            return [citation for child in item for citation in annotations(child, admitted)]
         if not isinstance(item, dict):
             return []
+        if item.get("type") in ("progress", "response.in_progress", "workflow_progress"):
+            return []
+        if "role" in item:
+            if item["role"] != "assistant":
+                return []
+            admitted = item.get("type") in (None, "message")
         found = [
             citation for citation in item.get("annotations", []) or []
-            if isinstance(citation, dict) and citation.get("type") == "url_citation"
+            if admitted and isinstance(citation, dict) and citation.get("type") == "url_citation"
         ]
-        for key in ("output", "messages", "content", "contents"):
+        for key in ("output", "messages", "content", "contents", "items", "response", "data", "conversationHistory"):
             if key in item:
-                found.extend(annotations(item[key]))
+                found.extend(annotations(item[key], admitted))
         return found
 
     return content + format_hosted_citation_sources(annotations(value), references, **binding)
 
 
+def visual_elements(value: Any) -> list[cl.CustomElement]:
+    """Optional element failures must not discard already admitted readable text."""
+    try:
+        return [cl.CustomElement(name="Presentation", props=p, display="inline")
+                for p in presentations(value) if p["contributions"]]
+    except (TypeError, ValueError, RuntimeError):
+        logger.warning("Native presentation unavailable", extra={"reason": "element_construction"})
+        return []
+
+
 async def render_progress(id: str, progress: dict[str, Any]) -> None:
+    if progress["status"] == "conversation":
+        # Restore from the existing owner-admitted native history, never a
+        # visual-specific source query or duplicate transcript store.
+        history = await get_service().history(await principal(), id)
+        content = await display_output(id, history)
+        elements = visual_elements(history)
+        await cl.Message(content=content or "Nenhuma mensagem salva.", elements=elements).send()
+        return
     pending = progress["pending"]
     actions = [cl.Action(name="native_refresh", payload={"id": id}, label="Atualizar andamento")]
     if len(pending) == 1:
@@ -132,12 +144,15 @@ async def render_progress(id: str, progress: dict[str, Any]) -> None:
     if pending:
         description = text_output(pending[0].get("data")) or json.dumps(pending[0].get("data"), ensure_ascii=False)
     description = await display_output(id, description)
+    visual_result = pending[0].get("data") if pending else progress["output"]
+    elements = visual_elements(visual_result)
     await cl.Message(
         content=(
             f"Processo: **{progress['status']}**\n\n{description}\n\n"
             f"Para retomar após reconectar, envie `/reabrir {id}`."
         ),
         actions=actions,
+        elements=elements,
     ).send()
 
 
@@ -207,7 +222,8 @@ async def handle_message(message: cl.Message) -> None:
                     name="native_feedback", label=label,
                     payload={"id": id, "rating": rating, "native_ref": turn["native_ref"]},
                 ) for rating, label in ((1, "Útil"), (-1, "Não útil"))]
-            await cl.Message(content=content, actions=actions).send()
+            elements = visual_elements(turn["response"])
+            await cl.Message(content=content, actions=actions, elements=elements).send()
     except (DelegationError, HostedAgentAuthenticationError) as exc:
         await offer_auth_recovery(exc.code, exc.claims_challenge, user=cl.user_session.get("user"))
     except (PermissionError, NativeNotFound, NativeUnavailable, MetadataConflict) as exc:
@@ -238,7 +254,9 @@ async def handle_action(action: cl.Action) -> None:
             cl.user_session.set("native_session_id", id)
             if row["application"] == "conversational":
                 history = await service.history(user, id)
-                await cl.Message(content=await display_output(id, history) or "Sessão aberta.").send()
+                content = await display_output(id, history) or "Sessão aberta."
+                elements = visual_elements(history)
+                await cl.Message(content=content, elements=elements).send()
             else:
                 await render_progress(id, await service.progress(user, id))
         elif action.name == "native_feedback":

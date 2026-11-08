@@ -97,3 +97,104 @@ div.relative.hidden.bg-muted.lg\:block {
   font-style: normal !important;
   font-weight: 400 !important;
 }
+
+/* Build-free CustomElement: scoped rules, not generated Tailwind utilities.
+   Inherit the same HSL theme tokens as the surrounding Chainlit application. */
+.inline-presentation {
+  --plot-1: #087dbb;
+  --plot-2: #a855c7;
+  --plot-3: #24856c;
+  --plot-4: #b66b14;
+  --plot-5: #bd405e;
+  --plot-6: #5967bd;
+  --plot-7: #767026;
+  --plot-8: #8e5d46;
+  min-width: 0;
+  width: 100%;
+  color: hsl(var(--foreground));
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.dark .inline-presentation {
+  --plot-1: #58b5ed;
+  --plot-2: #dba2f1;
+  --plot-3: #6ad3b2;
+  --plot-4: #edb56a;
+  --plot-5: #f18da5;
+  --plot-6: #a5aff8;
+  --plot-7: #d2c767;
+  --plot-8: #dba98b;
+}
+.inline-presentation * { box-sizing: border-box; }
+.inline-presentation p, .inline-presentation dl, .inline-presentation dd { margin: 0; }
+.inline-presentation .presentation-source {
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.inline-presentation .presentation-agent { font-weight: 600; color: hsl(var(--foreground)); }
+.inline-presentation .presentation-block {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;
+  background: hsl(var(--card));
+}
+.inline-presentation h3 { margin: 0 0 12px; font-size: 16px; font-weight: 650; line-height: 1.35; }
+.inline-presentation .presentation-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; }
+.inline-presentation .presentation-card { min-width: 0; border-left: 3px solid var(--plot-1); padding: 4px 12px; }
+.inline-presentation dt { color: hsl(var(--muted-foreground)); font-size: 13px; }
+.inline-presentation .presentation-value { font-size: 26px; font-weight: 650; letter-spacing: -.025em; font-variant-numeric: tabular-nums; margin: 4px 0 8px; }
+.inline-presentation .presentation-unit { font-size: 13px; font-weight: 400; letter-spacing: normal; color: hsl(var(--muted-foreground)); }
+.inline-presentation .presentation-trend { font-size: 12px; margin-top: 4px; color: hsl(var(--muted-foreground)); }
+.inline-presentation button, .inline-presentation input {
+  font: inherit;
+  color: inherit;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  border-radius: 6px;
+  padding: 8px 12px;
+  min-height: 40px;
+}
+.inline-presentation button { cursor: pointer; font-weight: 550; }
+.inline-presentation button:hover:not(:disabled) { background: hsl(var(--accent)); border-color: hsl(var(--primary)); }
+.inline-presentation button:disabled { opacity: .55; cursor: wait; }
+.inline-presentation :is(button, input, summary, [tabindex]):focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+.inline-presentation .presentation-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-bottom: 12px; }
+.inline-presentation .presentation-toolbar label { display: grid; gap: 5px; color: hsl(var(--muted-foreground)); font-size: 12px; flex: 1 1 200px; }
+.inline-presentation input { width: 100%; color: hsl(var(--foreground)); }
+.inline-presentation .presentation-copy-status:empty { display: none; }
+.inline-presentation .presentation-copy-status { color: hsl(var(--muted-foreground)); font-size: 12px; margin-bottom: 8px; }
+.inline-presentation .presentation-scroll { overflow-x: auto; max-width: 100%; }
+.inline-presentation table { border-collapse: collapse; width: 100%; font-size: 13px; text-align: left; font-variant-numeric: tabular-nums; }
+.inline-presentation th, .inline-presentation td { padding: 10px 12px; border-bottom: 1px solid hsl(var(--border)); min-width: 100px; max-width: 320px; overflow-wrap: anywhere; }
+.inline-presentation thead { background: hsl(var(--accent)); }
+.inline-presentation th { font-weight: 600; }
+.inline-presentation th button { background: transparent; border: 0; padding: 0; min-height: 32px; text-align: left; }
+.inline-presentation th[aria-sort="ascending"] button::after { content: " \2191"; }
+.inline-presentation th[aria-sort="descending"] button::after { content: " \2193"; }
+.inline-presentation tbody tr:last-child > * { border-bottom: 0; }
+.inline-presentation tbody tr:hover { background: hsl(var(--accent)); }
+.inline-presentation .presentation-status { display: inline-block; padding: 2px 8px; border: 1px solid hsl(var(--border)); border-radius: 4px; background: hsl(var(--accent)); font-size: 12px; font-weight: 550; }
+.inline-presentation .presentation-status[data-status="critical"] { color: #a61b31; background: #fff0f2; border-color: #f1c0c9; }
+.dark .inline-presentation .presentation-status[data-status="critical"] { color: #ffb9c4; background: #49232d; border-color: #77414e; }
+.inline-presentation .presentation-suggestions { display: flex; flex-wrap: wrap; gap: 8px; }
+.inline-presentation .presentation-suggestions button { text-align: left; }
+.inline-presentation .presentation-chart { display: block; width: 100%; max-height: 280px; }
+.inline-presentation .presentation-chart text { fill: hsl(var(--muted-foreground)); font: 12px system-ui, sans-serif; }
+.inline-presentation .presentation-chart .chart-value { fill: hsl(var(--foreground)); font-size: 11px; }
+.inline-presentation .chart-grid { stroke: hsl(var(--border)); stroke-width: 1; }
+.inline-presentation .chart-baseline { stroke: hsl(var(--muted-foreground)); }
+.inline-presentation .presentation-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; margin-bottom: 8px; }
+.inline-presentation .presentation-legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; background: var(--series-color); border-radius: 2px; margin-right: 6px; }
+.inline-presentation caption { text-align: left; color: hsl(var(--muted-foreground)); font-size: 12px; padding: 10px 12px 4px; }
+.inline-presentation details { border-top: 1px solid hsl(var(--border)); padding-top: 12px; color: hsl(var(--muted-foreground)); }
+.inline-presentation summary { cursor: pointer; width: fit-content; min-height: 32px; }
+.inline-presentation pre { white-space: pre-wrap; font: inherit; color: hsl(var(--foreground)); }
+@media (max-width: 480px) {
+  .inline-presentation .presentation-block { padding: 12px; margin: 12px 0; }
+  .inline-presentation .presentation-value { font-size: 23px; }
+  .inline-presentation .presentation-chart { min-width: 480px; }
+}
