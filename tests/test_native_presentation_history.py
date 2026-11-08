@@ -44,6 +44,66 @@ class NativeHistoryTests(unittest.IsolatedAsyncioTestCase):
         self.fixture = json.loads((Path(__file__).parent /
                                    "fixtures/inline-presentation/presentation-valid.json").read_text())
 
+    async def test_fresh_H01_hosted_conversational_visual(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[0])
+
+    async def test_fresh_H02_hosted_conversational_legacy(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[1])
+
+    async def test_fresh_H03_hosted_conversational_future_block(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[2])
+
+    async def test_fresh_H04_hosted_conversational_future_version(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[3])
+
+    async def test_fresh_H05_hosted_conversational_interrupted(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[4])
+
+    async def test_fresh_H06_hosted_workflow_multi_agent(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[5])
+
+    async def test_fresh_H07_hosted_workflow_legacy(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[6])
+
+    async def test_fresh_H08_hosted_workflow_future_block(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[7])
+
+    async def test_fresh_H09_hosted_workflow_future_version(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[8])
+
+    async def test_fresh_H10_hosted_workflow_interrupted(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[9])
+
+    async def test_fresh_H11_durable_conversational_visual(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[10])
+
+    async def test_fresh_H12_durable_conversational_legacy(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[11])
+
+    async def test_fresh_H13_durable_conversational_future_block(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[12])
+
+    async def test_fresh_H14_durable_conversational_future_version(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[13])
+
+    async def test_fresh_H15_durable_conversational_interrupted(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[14])
+
+    async def test_fresh_H16_durable_workflow_multi_agent(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[15])
+
+    async def test_fresh_H17_durable_workflow_legacy(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[16])
+
+    async def test_fresh_H18_durable_workflow_future_block(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[17])
+
+    async def test_fresh_H19_durable_workflow_future_version(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[18])
+
+    async def test_fresh_H20_durable_workflow_interrupted(self):
+        await self.fresh_history_case(*FRESH_HISTORY_CASES[19])
+
     async def fresh_history_case(self, case_id, host, application, scenario):
         """New native state, owner mapping, service and public SDK readers per case."""
         envelope = copy.deepcopy(self.fixture)
@@ -373,13 +433,3 @@ class NativeHistoryTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(NativeNotFound):
                     await fresh.history(self.other, row["id"])
                 hub.get_entity.assert_not_called()
-
-
-def fresh_case_test(case):
-    async def test(self):
-        await self.fresh_history_case(*case)
-    return test
-
-
-for _case in FRESH_HISTORY_CASES:
-    setattr(NativeHistoryTests, "test_fresh_" + "_".join(_case), fresh_case_test(_case))
