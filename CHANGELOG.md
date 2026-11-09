@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Local inline-presentation candidate:** admitted native-result reading, shared
+  readable REST/Chainlit projections, workflow/history display and build-free
+  SVG, exact table sort/filter/copy and normal-message follow-ups.
+  Unauthenticated offline Playwright checks use the actual JSX/React runner
+  and production API projection with mocked data/auth boundaries in four
+  view/theme combinations. Declared-SDK and production browser acceptance
+  remain pending; this is not
+  a shipped feature or production enablement.
+
+### Fixed
+
+- Preserve assistant-admitted citations through restored native `items`; ignore
+  user/tool/progress citation imitations. Optional visual construction failure
+  retains readable accepted text.
+- Reject all-null/repeated-category charts. Contain long grid-card labels and
+  locally scroll wide exact-value chart tables without whole-page overflow.
+
+- **Visible table fidelity:** filtering and clipboard export include displayed
+  status and follow-up columns, preserving headings, exact numeric scale,
+  null gaps and sorted/filtered row order.
+
 ## [v3.6.0] - 2026-11-02
 
 ### Added

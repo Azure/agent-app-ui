@@ -1,6 +1,9 @@
 # Keep Bash entrypoints executable from WSL/Linux checkouts.
 *.sh text eol=lf
 requirements.txt text eol=lf
+src/gpt_rag_ui/contracts/*.json text eol=lf
+src/gpt_rag_ui/contracts/*.sha256 text eol=lf
+tests/fixtures/inline-presentation/*.json text eol=lf
 
 # CHANGELOG.md is historically stored with CRLF in the index.
 CHANGELOG.md whitespace=cr-at-eol
