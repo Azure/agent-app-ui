@@ -145,9 +145,13 @@ def validate_record(name, record):
         invalid("Unsupported schema version")
     if name == "policy":
         strings(record["runtime_roots"], relative_path, nonempty=True)
-        exact_object(record["toolchain"], TOOLS)
-        for version in record["toolchain"].values():
-            if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+(?:\.\d+)?", version):
+        tools = TOOLS
+        if isinstance(record["toolchain"], dict) and "types-jsonschema" in record["toolchain"]:
+            tools = (*tools, "types-jsonschema")
+        exact_object(record["toolchain"], tools)
+        for name, version in record["toolchain"].items():
+            pattern = r"\d+\.\d+\.\d+\.\d{8}" if name == "types-jsonschema" else r"\d+\.\d+(?:\.\d+)?"
+            if not isinstance(version, str) or not re.fullmatch(pattern, version):
                 invalid("Tool versions must be exact")
         strings(record["required_checks"])
         if set(record["required_checks"]) != set(REQUIRED_JOBS):
