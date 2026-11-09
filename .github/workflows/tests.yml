@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: Azure/agent-app-orchestrator
-          ref: a2e60129fcb4ccb3c1a41989d2aeeef601c18331
+          ref: 72909db145ca41b954e18261d89e50318bed592a
           path: .integration-orchestrator
           persist-credentials: false
       - name: Stage orchestrator outside the UI checkout
@@ -142,7 +142,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: Azure/agent-app-orchestrator
-          ref: a2e60129fcb4ccb3c1a41989d2aeeef601c18331
+          ref: 72909db145ca41b954e18261d89e50318bed592a
           path: .integration-orchestrator
           persist-credentials: false
       - name: Stage orchestrator outside the UI checkout
