@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 import chainlit
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 from gpt_rag_ui.config.resources import get_asset_root
 from gpt_rag_ui.services.native_presentation import rest_projection, text_projection
@@ -300,14 +300,19 @@ class InlineBrowserTests(unittest.TestCase):
                             self.assertEqual(table.locator("tbody tr").count(), 1)
                             button = target.get_by_role("button", name="Inspect month")
                             button.click()
+                            expect(button).to_be_disabled()
                             frame.evaluate("document.querySelector('button:disabled')?.click()")
                             self.assertEqual(frame.evaluate("window.sent"), ["Inspect revenue for month mar"])
                             frame.evaluate("window.release()")
-                            target.get_by_role("button", name="Inspect month").wait_for(state="visible")
                             suggestion = target.get_by_role("button", name="Compare these months with the same period last year.")
+                            expect(suggestion).to_be_enabled()
                             suggestion.focus()
                             suggestion.press("Enter")
-                            self.assertEqual(len(frame.evaluate("window.sent")), 2)
+                            frame.wait_for_function("window.sent.length === 2", timeout=5000)
+                            self.assertEqual(frame.evaluate("window.sent"), [
+                                "Inspect revenue for month mar",
+                                "Compare these months with the same period last year.",
+                            ])
                             frame.evaluate("window.release()")
                             target.get_by_role("textbox").fill("")
                             target.get_by_text("Text alternative", exact=True).click()
