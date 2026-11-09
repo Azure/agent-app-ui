@@ -19,6 +19,7 @@ from gpt_rag_ui.services.native import (
     NativeService, NativePrincipal, NativeNotFound, NativeUnavailable,
     ResearchReviewStart, ReviewDecision,
 )
+from gpt_rag_ui.services.native_presentation import rest_projection
 
 logger = logging.getLogger(__name__)
 
@@ -103,27 +104,27 @@ def register_native_routes(app: FastAPI, service: NativeService) -> None:
 
     @router.post("/sessions/{id}/turns")
     async def turn(id: str, body: Turn, user: User) -> dict[str, Any]:
-        return await call(service.converse(user, id, body.text, body.attachments))
+        return rest_projection(await call(service.converse(user, id, body.text, body.attachments)))
 
     @router.post("/sessions/{id}/start", status_code=202)
     async def start(id: str, body: ResearchReviewStart, user: User) -> dict[str, Any]:
-        return await call(service.start(user, id, body))
+        return rest_projection(await call(service.start(user, id, body)))
 
     @router.get("/sessions/{id}/progress")
     async def progress(id: str, user: User) -> dict[str, Any]:
-        return await call(service.progress(user, id))
+        return rest_projection(await call(service.progress(user, id)))
 
     @router.post("/sessions/{id}/actions", status_code=202)
     async def reply(id: str, body: Action, user: User) -> dict[str, Any]:
-        return await call(service.reply(user, id, body.request_id, body.revision, body.response))
+        return rest_projection(await call(service.reply(user, id, body.request_id, body.revision, body.response)))
 
     @router.get("/sessions/{id}/history")
     async def history(id: str, user: User) -> dict[str, Any]:
-        return {"items": await call(service.history(user, id))}
+        return rest_projection({"items": await call(service.history(user, id))})
 
     @router.post("/sessions/{id}/resume")
     async def resume(id: str, user: User) -> dict[str, Any]:
-        return await call(service.resume(user, id))
+        return rest_projection(await call(service.resume(user, id)))
 
     @router.post("/sessions/{id}/feedback", status_code=201)
     async def feedback(id: str, body: Feedback, user: User) -> dict[str, Any]:

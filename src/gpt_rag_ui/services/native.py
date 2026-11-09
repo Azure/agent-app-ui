@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_serializer
 
 from gpt_rag_ui.auth.auth_common import normalize_guid, is_user_authorized
 from gpt_rag_ui.clients.native_hosted import (
@@ -33,6 +33,13 @@ class NativeNotFound(LookupError):
 class NativeInput(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    @model_serializer(mode="wrap")
+    def serialize_optional_presentation(self, handler: Any) -> dict[str, Any]:
+        data = handler(self)
+        if data.get("presentation") is None:
+            data.pop("presentation", None)
+        return data
+
 
 class ResearchReviewStart(NativeInput):
     topic: str = Field(min_length=1, max_length=8000, pattern=r"\S")
@@ -47,6 +54,7 @@ class ReviewRequest(NativeInput):
     topic: str
     draft: str
     configuration_revision: str
+    presentation: dict[str, Any] | None = None
 
 
 class ResearchReviewResult(NativeInput):
@@ -55,6 +63,7 @@ class ResearchReviewResult(NativeInput):
     draft: str
     review_comment: str
     configuration_revision: str
+    presentation: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)

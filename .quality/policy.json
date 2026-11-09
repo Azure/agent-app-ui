@@ -98,6 +98,19 @@
       "typing_status": "blocking"
     },
     {
+      "id": "gpt_rag_ui.services.native_presentation",
+      "path": "src/gpt_rag_ui/services/native_presentation.py",
+      "import_name": "gpt_rag_ui.services.native_presentation",
+      "area": "services",
+      "public_exports": ["read_presentation", "presentations", "rest_projection", "text_projection"],
+      "legacy_aliases": [],
+      "source_revision": "ed5ddb363424d8d7ae927167c76557dd9e9f50b8",
+      "responsibilities": "Versioned owner-admitted native presentation and readable text projections",
+      "private_modules": [],
+      "allowed_importers": [],
+      "typing_status": "blocking"
+    },
+    {
       "id": "gpt_rag_ui.services.native",
       "path": "src/gpt_rag_ui/services/native.py",
       "import_name": "gpt_rag_ui.services.native",
@@ -2146,9 +2159,9 @@
   "toolchain": {
     "ruff": "0.16.5",
     "mypy": "2.3.1",
-    "types-jsonschema": "4.26.0.20261006",
     "import-linter": "2.14",
-    "grimp": "3.16"
+    "grimp": "3.16",
+    "types-jsonschema": "4.26.0.20261006"
   },
   "required_checks": [
     "lint",

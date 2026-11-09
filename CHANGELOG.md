@@ -1,5 +1,43 @@
 # Changelog
 
+## [v3.7.0] - 2026-11-08
+
+### Added
+
+- **Opt-in inline presentation:** admitted native-result reading, shared
+  readable REST/Chainlit projections, workflow/history display and build-free
+  SVG, exact table sort/filter/copy and normal-message follow-ups.
+  Unauthenticated offline Playwright checks use the actual JSX/React runner
+  and production API projection with mocked data/auth boundaries in four
+  view/theme combinations. Declared-SDK acceptance is covered by the feature
+  qualification below; live production browser acceptance and production
+  enablement are not claimed.
+
+### Fixed
+
+- Preserve assistant-admitted citations through restored native `items`; ignore
+  user/tool/progress citation imitations. Optional visual construction failure
+  retains readable accepted text.
+- Reject all-null/repeated-category charts. Contain long grid-card labels and
+  locally scroll wide exact-value chart tables without whole-page overflow.
+
+- **Visible table fidelity:** filtering and clipboard export include displayed
+  status and follow-up columns, preserving headings, exact numeric scale,
+  null gaps and sorted/filtered row order.
+
+### Validation
+
+- **Merged feature qualification.** GitHub Actions run `42538167847` passed
+  all jobs: 783 unit cases and 710 offline container cases. The qualified
+  feature candidate and merged `develop` head have the same Git tree.
+  Actual isolated orchestrator-to-UI integration passed 17 cases; fresh
+  non-editable UI package acceptance passed 11 cases.
+- **Coordinated adoption.** Use the matching orchestrator v7.2.0 producer and
+  the umbrella release's validated manifest/configuration. Central inline
+  visuals documentation was merged in Azure/AI-Landing-Zones#178. Release
+  readiness additionally requires passing CI on the exact main-target PR.
+  Disable new generation for rollback while retaining saved-message readers.
+
 ## [v3.6.0] - 2026-11-02
 
 ### Added

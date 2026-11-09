@@ -11,6 +11,9 @@ requires-python = ">=3.12"
 [tool.setuptools.dynamic]
 version = {file = "VERSION"}
 
+[tool.setuptools.package-data]
+gpt_rag_ui = ["contracts/*.json", "contracts/*.sha256"]
+
 [tool.setuptools.packages.find]
 where = ["src", "."]
 include = ["gpt_rag_ui*", "connectors"]
