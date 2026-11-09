@@ -2159,6 +2159,7 @@
   "toolchain": {
     "ruff": "0.16.5",
     "mypy": "2.3.1",
+    "types-jsonschema": "4.26.0.20261006",
     "import-linter": "2.14",
     "grimp": "3.16",
     "types-jsonschema": "4.26.0.20261006"
