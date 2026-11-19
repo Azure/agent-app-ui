@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [v3.7.1] - 2026-11-19
+
 ### Fixed
 
 - **Shell deployment reads single-line App Configuration values.** `scripts/deploy.sh`
