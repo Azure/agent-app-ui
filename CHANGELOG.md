@@ -9,6 +9,9 @@
   Before this fix, `get_config_value` rejected valid values such as
   `CONTAINER_REGISTRY_NAME` on Linux. A failed read now reports the exit code
   and raw Azure CLI output.
+- **Quality gate uses the tested Python version.** The aggregate quality gate
+  now pins Python 3.12, matching the test job. Before this fix, newer runner
+  images rejected valid test evidence as changed.
 
 ## [v3.7.0] - 2026-11-08
 
