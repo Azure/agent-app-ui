@@ -1,6 +1,13 @@
 # Changelog
 
-## [Unreleased]
+## [v3.7.2] - 2026-11-20
+
+### Changed
+
+- **PyJWT compatibility patch.** Raise the supported `PyJWT[crypto]` minimum
+  from `2.15.0` to `2.15.1`, retaining the `<3.0.0` upper bound.
+- **Azure Blob Storage SDK patch.** Update the pinned `azure-storage-blob`
+  dependency from `12.31.0` to `12.31.1`.
 
 ## [v3.7.1] - 2026-11-19
 
