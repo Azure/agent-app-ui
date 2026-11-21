@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **OpenAI SDK refresh.** Update the pinned `openai` dependency from `3.38.0`
+  to `3.54.0` and align installed-package version acceptance with that pin.
+  Preserve non-editable package provenance and real Responses API behavioral
+  checks at offline service boundaries.
+
 ## [v3.7.2] - 2026-11-20
 
 ### Changed
