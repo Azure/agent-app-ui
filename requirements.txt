@@ -20,7 +20,7 @@ tenacity==9.1.4
 uvicorn==0.54.0
 azure-appconfiguration-provider==2.5.0
 azure-applicationinsights==0.1.1
-openai==3.38.0
+openai==3.54.0
 agent-framework-core==1.24.0
 agent-framework-durabletask==1.0.0b261029
 durabletask==1.12.0
