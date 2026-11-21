@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [v3.7.3] - 2026-11-21
+
 ### Changed
 
 - **OpenAI SDK refresh.** Update the pinned `openai` dependency from `3.38.0`
