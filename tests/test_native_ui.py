@@ -364,7 +364,7 @@ class PublishedClientShapeTests(unittest.IsolatedAsyncioTestCase):
         for name, version in (
             ("agent-framework-core", "1.24.0"),
             ("agent-framework-durabletask", "1.0.0b261029"),
-            ("openai", "3.38.0"),
+            ("openai", "3.54.0"),
         ):
             self.assertEqual(importlib.metadata.version(name), version)
             receipt = importlib.metadata.distribution(name).read_text("direct_url.json")
