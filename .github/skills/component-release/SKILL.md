@@ -5,6 +5,9 @@ description: "Prepares a verifiable Agent Landing Zone UI release. Use for relea
 
 # Agent Landing Zone UI component release
 
+For an `Azure/agent-landing-zone` umbrella release, the exact candidate must pass its required CI and applicable unit, integration, quality, security, contract, and compatibility checks before the pre-release is published. The standard live Azure validation is not a pre-release publication gate. After publication, dispatch `.github/workflows/release-validation.yml` with both providers and promotion enabled. Only that workflow may promote the release to Latest, after both Bicep and Terraform pass. Component-specific publication, validation, compatibility, rollback, and human approval requirements remain in force.
+
+
 1. Start from the current `develop` branch and create `release/X.Y.Z`.
 2. Choose a semantic version from the shipped change set. Do not change
    `VERSION` on `develop` merely to anticipate a release.
