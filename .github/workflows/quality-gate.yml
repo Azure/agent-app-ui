@@ -1,4 +1,4 @@
-name: Tests
+name: Quality gate
 
 on:
   pull_request:
@@ -6,14 +6,32 @@ on:
   push:
     branches: [develop, main]
   merge_group:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 env:
-  BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+  BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before || github.sha }}
 
 jobs:
+  agentic-assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/scripts/requirements.txt
+      - name: Install validator dependencies
+        run: python -m pip install --disable-pip-version-check -r .github/scripts/requirements.txt
+      - name: Validate agents, skills, and scoped instructions
+        run: python .github/scripts/validate-agentic-assets.py
+
   unit-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -166,14 +184,26 @@ jobs:
   quality-gate:
     name: quality-gate
     if: always()
-    needs: [quality, unit-tests, container-tests]
+    needs: [quality, unit-tests, container-tests, agentic-assets]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
       QUALITY_RESULT: ${{ needs.quality.result }}
       TEST_RESULT: ${{ needs.unit-tests.result }}
       CONTAINER_RESULT: ${{ needs.container-tests.result }}
+      AGENTIC_RESULT: ${{ needs.agentic-assets.result }}
     steps:
+      - name: Require every prerequisite job to succeed
+        shell: bash
+        run: |
+          set -euo pipefail
+          for prerequisite in QUALITY_RESULT TEST_RESULT CONTAINER_RESULT AGENTIC_RESULT; do
+            result="${!prerequisite:-}"
+            if [[ "$result" != "success" ]]; then
+              echo "::error::$prerequisite finished with '${result:-missing}'"
+              exit 1
+            fi
+          done
       - name: Check out evaluation inputs
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:

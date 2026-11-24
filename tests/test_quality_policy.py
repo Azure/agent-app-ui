@@ -132,7 +132,7 @@ class QualityPolicyTests(unittest.TestCase):
             self.assertFalse(report["passed"])
 
     def test_quality_job_does_not_install_candidate_build_or_runtime_requirements(self):
-        source = (SCRIPT.parents[1] / "workflows" / "tests.yml").read_text(encoding="utf-8")
+        source = (SCRIPT.parents[1] / "workflows" / "quality-gate.yml").read_text(encoding="utf-8")
         job = source.split("\n  quality:\n", 1)[1].split("\n  container-tests:\n", 1)[0]
         self.assertIn('git show "$BASE_SHA:requirements.txt"', job)
         self.assertIn('python -I -m venv "$RUNNER_TEMP/quality-tools"', job)

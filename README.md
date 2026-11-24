@@ -37,7 +37,7 @@ This component does not provision the platform.
 ## Contributing and support
 
 - [Contributor rules](AGENTS.md) and [engineering framework](docs/agentic-engineering.md).
-- [Contributing](https://github.com/Azure/agent-landing-zone/blob/main/CONTRIBUTING.md).
+- [Contributing](CONTRIBUTING.md).
 - [Support](SUPPORT.md) and [security reporting](SECURITY.md).
 - [Code of conduct](CODE_OF_CONDUCT.md) and [license](LICENSE).
 
