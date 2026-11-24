@@ -1,0 +1,85 @@
+name: Candidate quality tools
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - requirements-quality.txt
+      - .quality/policy.json
+      - .github/workflows/candidate-quality-tools.yml
+
+permissions:
+  contents: read
+
+jobs:
+  candidate-toolchain-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      INLINE_ORCH_TESTS: "1"
+    steps:
+      - name: Check out candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check out qualified orchestrator test sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Azure/agent-app-orchestrator
+          ref: 72909db145ca41b954e18261d89e50318bed592a
+          path: .integration-orchestrator
+          persist-credentials: false
+      - name: Stage orchestrator outside the UI checkout
+        run: |
+          mv .integration-orchestrator "$RUNNER_TEMP/inline-orchestrator"
+          printf 'INLINE_ORCH_TEST_ROOT=%s\nINLINE_ORCH_TEST_PYTHON=%s\n' \
+            "$RUNNER_TEMP/inline-orchestrator" "$RUNNER_TEMP/orchestrator-test-env/bin/python" >> "$GITHUB_ENV"
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Install isolated orchestrator test dependencies
+        run: |
+          python -m venv "$RUNNER_TEMP/orchestrator-test-env"
+          "$INLINE_ORCH_TEST_PYTHON" -m pip install -r "$INLINE_ORCH_TEST_ROOT/requirements-hosted.txt" -r tests/requirements-orchestrator.txt
+          "$INLINE_ORCH_TEST_PYTHON" -m pip check
+      - name: Select protected unittest evidence runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in .github/scripts/check-quality.py .github/scripts/run-unittest.py; do
+            git show "$BASE_SHA:$file" > "$RUNNER_TEMP/$(basename "$file")"
+          done
+      - name: Install runtime and candidate quality dependencies
+        run: |
+          python -m pip install -r requirements.txt -r requirements-test.txt -r requirements-quality.txt
+          python -m pip check
+          python -m pip install --no-deps -e .
+          python -m pip check
+      - name: Verify installed quality tool versions
+        run: |
+          python - <<'PY'
+          import importlib.metadata
+          import json
+          from pathlib import Path
+
+          expected = json.loads(Path(".quality/policy.json").read_text())["toolchain"]
+          actual = {name: importlib.metadata.version(name) for name in expected}
+          if actual != expected:
+              raise SystemExit(f"Quality tool versions differ: expected {expected}, found {actual}")
+          print(f"Candidate quality tool versions: {actual}")
+          PY
+      - name: Install Chromium for offline browser tests
+        run: python -m playwright install --with-deps chromium
+      - name: Run full unittest suite with candidate quality tools
+        run: python "$RUNNER_TEMP/run-unittest.py" --base-ref "$BASE_SHA" --report .artifacts/candidate-unittest.json
+      - name: Retain separate unittest evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: candidate-unittest
+          path: .artifacts/candidate-unittest.json
+          if-no-files-found: error
+          retention-days: 7

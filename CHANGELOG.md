@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Quality and CI dependency maintenance.** Update the pinned import-linter
+  and grimp tools and the GitHub Actions used by CI, keeping their immutable
+  references and protected quality checks. Run a separate full unittest suite
+  with proposed quality-tool pins when those pins change.
+
 ## [v3.7.3] - 2026-11-21
 
 ### Changed
