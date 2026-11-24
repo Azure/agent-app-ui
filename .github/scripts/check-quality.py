@@ -36,7 +36,7 @@ NON_RUNTIME_DIRECTORIES = {"tests", "scripts", "docs", "infra", "public", "build
 BUILTIN_EXCEPTIONS = {name for name, value in vars(builtins).items()
                       if isinstance(value, type) and issubclass(value, BaseException)}
 PROTECTED_FILES = (".github/scripts/check-quality.py", ".github/scripts/run-unittest.py",
-                   ".github/scripts/aggregate-quality.py", ".github/workflows/tests.yml",
+                   ".github/scripts/aggregate-quality.py", ".github/workflows/quality-gate.yml",
                    ".github/CODEOWNERS", "requirements-quality.txt", ".quality/migration.json",
                    "tests/container_smoke.py")
 

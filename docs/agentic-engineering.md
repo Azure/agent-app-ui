@@ -72,5 +72,7 @@ python -m pip install -r .github/scripts/requirements.txt
 python .github/scripts/validate-agentic-assets.py
 ```
 
-The path-filtered `validate-agentic-assets.yml` workflow runs the same check on
-pull requests and pushes to `develop` or `main`.
+The `agentic-assets` job in `quality-gate.yml` runs the same check on pull
+requests, pushes to `develop` or `main`, merge groups, and manual runs. The
+required `quality-gate` check also requires the repository's tests and static
+quality checks to succeed; no path filters can leave it pending.

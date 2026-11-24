@@ -175,7 +175,7 @@ orchestrator.
   requests and removed immediately afterward.
 - Require SHA pinning in repository Actions settings. Keep CodeQL Actions
   security analysis enabled and authorize `pull_request_target` only for
-  `.github/workflows/block-pr-to-main.yml`, without running pull request code.
+  `.github/workflows/release-branch-guard.yml`, without running pull request code.
 - The normal `develop` to release to `main` flow remains unchanged. This
   standard does not authorize publishing a release or deploying.
 
