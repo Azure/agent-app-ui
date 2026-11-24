@@ -1,13 +1,4 @@
 # Repository permission endpoint confirmed @placerda has admin permission.
 # Ownership routing only; Q5 does not mandate independent/latest-head approval.
 # This file alone does not activate branch protection or required checks.
-/.quality/ @placerda
-/pyproject.toml @placerda
-/requirements-quality.txt @placerda
-/.github/scripts/check-quality.py @placerda
-/.github/scripts/run-unittest.py @placerda
-/.github/scripts/aggregate-quality.py @placerda
-/.github/workflows/quality-gate.yml @placerda
-/.github/CODEOWNERS @placerda
-/tests/test_quality_policy.py @placerda
-/tests/container_smoke.py @placerda
+* @placerda

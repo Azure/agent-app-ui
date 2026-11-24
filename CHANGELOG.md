@@ -12,6 +12,9 @@
   and grimp tools and the GitHub Actions used by CI, keeping their immutable
   references and protected quality checks. Run a separate full unittest suite
   with proposed quality-tool pins when those pins change.
+- **Repository-wide ownership routing.** Assign `@placerda` as the CODEOWNER
+  for every repository path without changing branch protection or approval
+  requirements.
 
 ## [v3.7.3] - 2026-11-21
 
