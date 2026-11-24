@@ -4,6 +4,10 @@
 
 ### Changed
 
+- **Unified repository governance checks.** Run agentic asset validation in
+  the required quality gate, including manual and merge-group runs, and
+  enforce same-repository release branches for `main` with a read-only guard.
+  Keep contribution guidance aligned with the `develop` workflow.
 - **Quality and CI dependency maintenance.** Update the pinned import-linter
   and grimp tools and the GitHub Actions used by CI, keeping their immutable
   references and protected quality checks. Run a separate full unittest suite

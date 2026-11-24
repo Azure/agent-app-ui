@@ -7,7 +7,7 @@
 /.github/scripts/check-quality.py @placerda
 /.github/scripts/run-unittest.py @placerda
 /.github/scripts/aggregate-quality.py @placerda
-/.github/workflows/tests.yml @placerda
+/.github/workflows/quality-gate.yml @placerda
 /.github/CODEOWNERS @placerda
 /tests/test_quality_policy.py @placerda
 /tests/container_smoke.py @placerda

@@ -1,4 +1,4 @@
-name: Enforce pull request target
+name: Release branch guard
 
 # Feature work targets develop. Release branches are the normal path to main.
 # pull_request_target is used without checking out or executing pull request code.
@@ -15,12 +15,12 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
-  enforce-source:
-    name: Require a release branch
+  release-branch-required:
+    name: release-branch-required
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Validate the source branch
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -28,7 +28,7 @@ jobs:
           script: |
             const pullRequest = context.payload.pull_request;
             const isSameRepository =
-              pullRequest.head.repo.full_name === pullRequest.base.repo.full_name;
+              pullRequest.head.repo?.full_name === pullRequest.base.repo.full_name;
             const isReleaseBranch =
               /^release\/(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/
                 .test(pullRequest.head.ref);
@@ -36,28 +36,6 @@ jobs:
             if (isSameRepository && isReleaseBranch) {
               core.info(`Allowed release branch: ${pullRequest.head.ref}`);
               return;
-            }
-
-            const body = `## Pull request target must be \`develop\`
-
-            Feature and maintenance work in this repository targets \`develop\`.
-            Only same-repository \`release/X.Y.Z\` branches normally target
-            \`main\`.
-
-            Please change the base branch from \`main\` to \`develop\`.
-            See \`.github/copilot-instructions.md\` for the complete branch and
-            release policy.
-
-            ---
-            *This is an automated message.*`;
-
-            if (['opened', 'reopened', 'edited'].includes(context.payload.action)) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pullRequest.number,
-                body
-              });
             }
 
             core.setFailed(
