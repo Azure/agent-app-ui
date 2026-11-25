@@ -106,13 +106,32 @@ class TestConfiguration(unittest.TestCase):
             self._load({"HOSTED_AGENT_BASE_URL": "https://agent.example.com"})
 
     def test_rejects_arm_scope(self):
-        with self.assertRaisesRegex(HostedAgentConfigError, "not Azure ARM"):
-            self._load(
-                {
+        for scope in (
+            "https://management.azure.com/.default",
+            "https://MANAGEMENT.AZURE.COM/.default",
+            "https://user@management.azure.com/.default",
+        ):
+            with self.subTest(scope=scope), self.assertRaisesRegex(HostedAgentConfigError, "not Azure ARM"):
+                self._load(
+                    {
+                        "HOSTED_AGENT_BASE_URL": "https://agent.example.com",
+                        "HOSTED_AGENT_RESOURCE_SCOPE": scope,
+                    }
+                )
+
+    def test_arm_name_outside_hostname_does_not_reject_data_plane_scope(self):
+        for scope in (
+            "https://management.azure.com.example.com/.default",
+            "https://example.com/management.azure.com/.default",
+            "https://management.azure.com@example.com/.default",
+            "api://management.azure.com-agent/.default",
+        ):
+            with self.subTest(scope=scope):
+                settings = self._load({
                     "HOSTED_AGENT_BASE_URL": "https://agent.example.com",
-                    "HOSTED_AGENT_RESOURCE_SCOPE": "https://management.azure.com/.default",
-                }
-            )
+                    "HOSTED_AGENT_RESOURCE_SCOPE": scope,
+                })
+                self.assertEqual(scope, settings.resource_scope)
 
     def test_rejects_unbounded_idle_timeout(self):
         with self.assertRaisesRegex(HostedAgentConfigError, "finite positive"):

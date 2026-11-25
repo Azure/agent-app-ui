@@ -239,11 +239,26 @@ class TestHostedContinuityConfig(unittest.TestCase):
 
     def test_rejects_arm_store_resource_scope(self):
         values = dict(self._VALID_VALUES)
-        values["HOSTED_CONVERSATION_STORE_RESOURCE_SCOPE"] = (
-            "https://management.azure.com/.default"
-        )
-        with self.assertRaisesRegex(HostedContinuityConfigError, "not Azure ARM"):
-            self._load(values)
+        for scope in (
+            "https://management.azure.com/.default",
+            "https://MANAGEMENT.AZURE.COM/.default",
+            "https://user@management.azure.com/.default",
+        ):
+            values["HOSTED_CONVERSATION_STORE_RESOURCE_SCOPE"] = scope
+            with self.subTest(scope=scope), self.assertRaisesRegex(HostedContinuityConfigError, "not Azure ARM"):
+                self._load(values)
+
+    def test_arm_name_outside_hostname_does_not_reject_store_scope(self):
+        values = dict(self._VALID_VALUES)
+        for scope in (
+            "https://management.azure.com.example.com/.default",
+            "https://example.com/management.azure.com/.default",
+            "https://management.azure.com@example.com/.default",
+            "api://management.azure.com-agent/.default",
+        ):
+            values["HOSTED_CONVERSATION_STORE_RESOURCE_SCOPE"] = scope
+            with self.subTest(scope=scope):
+                self.assertEqual(scope, self._load(values).store_resource_scope)
 
     def test_requires_explicit_default_scope_suffix(self):
         values = dict(self._VALID_VALUES)
