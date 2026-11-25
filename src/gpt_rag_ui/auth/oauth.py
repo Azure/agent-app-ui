@@ -6,6 +6,7 @@ import re
 import asyncio
 import time
 from typing import Dict, List, Optional
+from urllib.parse import urlsplit
 
 import chainlit as cl
 import msal
@@ -257,9 +258,12 @@ def _looks_like_graph_scope(scope: str) -> bool:
         return True
 
     # Graph resource identifiers / default scopes
-    if "graph.microsoft.com" in s_lower:
+    if urlsplit(s_lower).hostname == "graph.microsoft.com":
         return True
-    if "00000003-0000-0000-c000-000000000000" in s_lower:
+    if s_lower.split("/", 1)[0] in {
+        "graph.microsoft.com",
+        "00000003-0000-0000-c000-000000000000",
+    }:
         return True
 
     return False

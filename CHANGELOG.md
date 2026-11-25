@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Exact OAuth resource comparisons.** Parse ARM and Graph scope hosts instead
+  of matching domain text anywhere in the scope, preserving resource denials
+  without rejecting unrelated application identifiers or paths. Use the exact
+  Search scope in the native-download test fixture.
+
 ### Changed
 
 - **Unified repository governance checks.** Run agentic asset validation in

@@ -181,7 +181,7 @@ def _validate_resource_scope(value: str | None) -> str:
             "CHAT_BACKEND is 'hosted_agent' but HOSTED_AGENT_RESOURCE_SCOPE is not configured. "
             "Set it to the deployed hosted-agent data-plane scope ending in '/.default'."
         )
-    if "management.azure.com" in scope.lower():
+    if urlparse(scope).hostname == "management.azure.com":
         raise HostedAgentConfigError(
             "HOSTED_AGENT_RESOURCE_SCOPE must be the hosted-agent data-plane scope, not Azure ARM."
         )

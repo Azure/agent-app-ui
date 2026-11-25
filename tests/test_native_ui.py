@@ -95,6 +95,31 @@ class NativeConfigurationTests(unittest.TestCase):
         self.assertEqual(result.agent_url, "")
         self.assertTrue(result.workflow)
 
+    def test_hosted_scope_checks_the_arm_hostname_not_arbitrary_substrings(self):
+        config = base_config(
+            ORCHESTRATION_HOST="hosted", APPLICATION_MODE="workflow",
+            DURABLE_TASK_SCHEDULER_CONNECTION_STRING="",
+            HOSTED_WORKFLOW_BASE_URL="https://workflow.example.invalid/openai/v1",
+        )
+        for scope in (
+            "https://management.azure.com/.default",
+            "https://MANAGEMENT.AZURE.COM/.default",
+            "https://user@management.azure.com/.default",
+        ):
+            config.values["HOSTED_AGENT_RESOURCE_SCOPE"] = scope
+            with self.subTest(scope=scope), self.assertRaises(ConfigurationError):
+                load_native_settings(config)
+        for scope in (
+            "https://ai.azure.com/.default",
+            "https://management.azure.com.example.com/.default",
+            "https://example.com/management.azure.com/.default",
+            "https://management.azure.com@example.com/.default",
+            "api://management.azure.com-agent/.default",
+        ):
+            config.values["HOSTED_AGENT_RESOURCE_SCOPE"] = scope
+            with self.subTest(scope=scope):
+                self.assertEqual(scope, load_native_settings(config).resource_scope)
+
     def test_owner_metadata_is_conditional_not_runtime_checkpoint_dependency(self):
         result = load_native_settings(base_config(
             APPLICATION_MODE="conversational", DATABASE_ACCOUNT_NAME="", DATABASE_NAME="",

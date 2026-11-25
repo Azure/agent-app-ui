@@ -158,7 +158,7 @@ def load_native_settings(config: NativeConfig) -> NativeSettings | None:
         if read(config, "DURABLE_TASK_SCHEDULER_CONNECTION_STRING"):
             raise ConfigurationError("Hosted UI cannot bind a Durable Task Scheduler.")
         scope = read(config, "HOSTED_AGENT_RESOURCE_SCOPE")
-        if not scope.endswith("/.default") or "management.azure.com" in scope.lower():
+        if not scope.endswith("/.default") or urlsplit(scope).hostname == "management.azure.com":
             raise ConfigurationError("HOSTED_AGENT_RESOURCE_SCOPE must be an explicit data-plane /.default scope.")
         settings = NativeSettings(
             host="hosted", mode=cast(ApplicationMode, mode), resource_scope=scope, auth_mode=auth_mode,

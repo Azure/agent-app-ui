@@ -80,7 +80,7 @@ class NativeDownloadTests(unittest.IsolatedAsyncioTestCase):
         ))
 
         async def obo(assertion, scope):
-            return assertion + ("-search" if "search.azure.com" in scope else "-storage")
+            return assertion + ("-search" if scope == "https://search.azure.com/.default" else "-storage")
         self.obo = self.stack.enter_context(patch.object(
             blob, "acquire_obo_token", AsyncMock(side_effect=obo),
         ))
