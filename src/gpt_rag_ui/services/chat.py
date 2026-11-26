@@ -748,8 +748,6 @@ async def handle_message(message: cl.Message):
         # ----------------------------------------------
 
 
-        app_user = cl.user_session.get("user")
-
         span.set_attribute('question_id', message.id)
         span.set_attribute('conversation_id', conversation_id)
         span.set_attribute('user_id', auth_info.get('client_principal_id', 'anonymous'))
