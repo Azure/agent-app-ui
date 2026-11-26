@@ -577,7 +577,7 @@
       "module_id": "app",
       "symbol": "handle_message",
       "review": "AI technical assessment in .quality/exception-technical-review.json; eligible for source-bound technical validation, not independent approval.",
-      "handler_fingerprint": "b197d32b6d5d9ae50f4040e7a9bee6a654c52ca382ac97c930c6ec6763f80a01",
+      "handler_fingerprint": "d2ac47e03b084d2379f737425dad412be9900c0b855d3fc88d5ef5eaaa4c18c1",
       "caught_types": [
         "Exception"
       ],
@@ -587,6 +587,7 @@
       "diagnostic_path": "log_boundary_failure: static operation, exception class and code location; no dependency message, chain, locals or raw citation URL; existing outcome unchanged",
       "evidence_tests": [
         "tests/test_boundary_failures.py::BoundaryFailureTests.test_chat_failure_boundaries_report_errors_and_close_generators",
+        "tests/test_boundary_failures.py::BoundaryFailureTests.test_classic_stream_failures_after_partial_output_close_generator",
         "tests/test_boundary_diagnostics.py::BoundaryDiagnosticsTests.test_dependency_payload_chain_and_locals_are_not_logged"
       ],
       "state": "active",
