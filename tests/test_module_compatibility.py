@@ -1,7 +1,6 @@
 """Actual legacy imports remain available; private test seams are not adapters."""
 
 import ast
-import importlib
 import json
 import os
 from pathlib import Path

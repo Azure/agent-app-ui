@@ -1,7 +1,7 @@
 import unittest
 import unittest.mock
 
-from gpt_rag_ui.clients.hosted_agent_client import HostedAgentError, InvocationMessage
+from gpt_rag_ui.clients.hosted_agent_client import HostedAgentError
 from gpt_rag_ui.services.hosted_continuity import (
     ContinuityPersistenceError,
     ConversationNotFoundError,
@@ -9,7 +9,6 @@ from gpt_rag_ui.services.hosted_continuity import (
 )
 from gpt_rag_ui.config.hosted_continuity_config import HostedContinuitySettings
 from gpt_rag_ui.clients.hosted_conversation_capability import (
-    ConversationCapabilityError,
     ConversationCapabilityManager,
 )
 from gpt_rag_ui.clients.hosted_conversation_store import (

@@ -1,5 +1,4 @@
 import unittest
-from unittest.mock import Mock
 
 from gpt_rag_ui.clients.panel_cosmos import PanelStoreError
 from gpt_rag_ui.config.panel_config import PanelSettings
