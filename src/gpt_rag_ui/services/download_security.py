@@ -1,7 +1,5 @@
-import asyncio
 import hashlib
 import logging
-import mimetypes
 import os
 import re
 from collections.abc import Awaitable, Callable, Iterable
@@ -9,15 +7,12 @@ from dataclasses import dataclass
 from urllib.parse import quote, urlsplit
 from typing import Any
 
-from azure.core.exceptions import ResourceNotFoundError
 from chainlit.auth import authenticate_user, get_token_from_cookies
-from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi import HTTPException, Request
 from itsdangerous import BadData, URLSafeTimedSerializer
 
 from gpt_rag_ui.services.conversation_security import (
     canonical_conversation_id,
-    get_owned_conversation,
     principal_id_from_metadata,
 )
 from gpt_rag_ui.auth.embed_auth import (
