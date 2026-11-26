@@ -207,7 +207,7 @@ def _validate_store_resource_scope(value: str) -> str:
             "HOSTED_CONVERSATION_STORE_RESOURCE_SCOPE (or HOSTED_AGENT_RESOURCE_SCOPE "
             "as a fallback) is not configured."
         )
-    if "management.azure.com" in scope.lower():
+    if urlparse(scope).hostname == "management.azure.com":
         raise HostedContinuityConfigError(
             "HOSTED_CONVERSATION_STORE_RESOURCE_SCOPE must be a data-plane scope, "
             "not Azure ARM."

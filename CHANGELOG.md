@@ -1,5 +1,28 @@
 # Changelog
 
+## [v3.7.5] - 2026-11-25
+
+### Fixed
+
+- **Exact OAuth resource comparisons.** Parse ARM and Graph scope hosts instead
+  of matching domain text anywhere in the scope, preserving resource denials
+  without rejecting unrelated application identifiers or paths. Use the exact
+  Search scope in the native-download test fixture.
+
+### Changed
+
+- **Unified repository governance checks.** Run agentic asset validation in
+  the required quality gate, including manual and merge-group runs, and
+  enforce same-repository release branches for `main` with a read-only guard.
+  Keep contribution guidance aligned with the `develop` workflow.
+- **Quality and CI dependency maintenance.** Update the pinned import-linter
+  and grimp tools and the GitHub Actions used by CI, keeping their immutable
+  references and protected quality checks. Run a separate full unittest suite
+  with proposed quality-tool pins when those pins change.
+- **Repository-wide ownership routing.** Assign `@placerda` as the CODEOWNER
+  for every repository path without changing branch protection or approval
+  requirements.
+
 ## [v3.7.4] - 2026-11-23
 
 ### Changed

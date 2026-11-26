@@ -143,6 +143,26 @@ class RecoveryTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(RuntimeError):
                 oauth.resolve_oauth_runtime_config()
 
+    def test_graph_scope_detection_matches_resource_not_arbitrary_substrings(self):
+        for scope in (
+            "User.Read", "https://graph.microsoft.com/User.Read",
+            "https://GRAPH.MICROSOFT.COM/.default",
+            "https://user@graph.microsoft.com/User.Read",
+            "graph.microsoft.com/User.Read",
+            "00000003-0000-0000-c000-000000000000/.default",
+        ):
+            with self.subTest(scope=scope):
+                self.assertTrue(oauth._looks_like_graph_scope(scope))
+        for scope in (
+            f"api://{CLIENT}/user_impersonation",
+            "https://graph.microsoft.com.example.com/user_impersonation",
+            "https://example.com/graph.microsoft.com/user_impersonation",
+            "https://graph.microsoft.com@example.com/user_impersonation",
+            "api://app-00000003-0000-0000-c000-000000000000/user_impersonation",
+        ):
+            with self.subTest(scope=scope):
+                self.assertFalse(oauth._looks_like_graph_scope(scope))
+
     async def test_public_binding_validator_rejects_account_session_mode_and_authorization_changes(self):
         context = recovery.verify_recovery(self.ticket(), metadata())
         recovery.validate_recovery_binding(context, metadata())
