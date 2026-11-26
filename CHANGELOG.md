@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [v3.7.5] - 2026-11-25
 
 ### Fixed
 
@@ -22,6 +22,12 @@
 - **Repository-wide ownership routing.** Assign `@placerda` as the CODEOWNER
   for every repository path without changing branch protection or approval
   requirements.
+
+## [v3.7.4] - 2026-11-23
+
+### Changed
+
+- **Release validation policy.** Clarify that the umbrella pre-release follows required candidate CI and source-level checks, while the central Bicep/Terraform Azure validation runs after publication and gates promotion to Latest.
 
 ## [v3.7.3] - 2026-11-21
 
