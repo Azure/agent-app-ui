@@ -5,7 +5,6 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from io import BytesIO
-from pathlib import Path
 from urllib.parse import quote
 
 from azure.core.exceptions import ResourceNotFoundError
@@ -681,7 +680,7 @@ def _configure_copilot_upload_validation(chainlit_server) -> None:
         if session and session.auth_mode == "entra" and spec is None:
             chainlit_server.validate_file_mime_type(file, spec)
             chainlit_server.validate_file_size(file, spec)
-            return
+            return None
         return original_validate(file, spec)
 
     chainlit_server.validate_file_upload = validate_file_upload
