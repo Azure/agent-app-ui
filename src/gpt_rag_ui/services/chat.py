@@ -1277,7 +1277,6 @@ async def handle_message(message: cl.Message):
                     f"{message.id}."
                 )
                 full_text = user_error_message
-                buffer = ""
                 await response_msg.stream_token(user_error_message)
 
             except httpx.TimeoutException as e:
@@ -1293,7 +1292,6 @@ async def handle_message(message: cl.Message):
                     f"{message.id}."
                 )
                 full_text = user_error_message
-                buffer = ""
                 await response_msg.stream_token(user_error_message)
 
             except Exception as e:
@@ -1308,7 +1306,6 @@ async def handle_message(message: cl.Message):
                     message.id,
                 )
                 full_text = user_error_message
-                buffer = ""
                 await response_msg.stream_token(user_error_message)
 
             finally:
