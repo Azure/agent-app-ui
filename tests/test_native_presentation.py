@@ -65,7 +65,7 @@ class NativePresentationTests(unittest.IsolatedAsyncioTestCase):
             patch.object(native_chat.cl.user_session, "get", side_effect=lambda key: self.session.get(key)),
             patch.object(native_chat.cl.user_session, "set", side_effect=self.session.__setitem__),
             patch.object(native_chat.cl, "Message", side_effect=message),
-            patch.object(native_chat.cl, "CustomElement", side_effect=lambda **kwargs: SimpleNamespace(**kwargs)),
+            patch.object(native_chat.cl, "CustomElement", side_effect=SimpleNamespace),
             patch.object(native_chat, "replace_source_reference_links", side_effect=lambda text, *args, **kwargs: text),
             patch.object(native_chat, "format_hosted_citation_sources", return_value=""),
         ):
