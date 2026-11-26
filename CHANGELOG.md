@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Classic chat stream cleanup.** Remove unused buffer resets after stream
+  failures while preserving error messages and generator cleanup.
+
 ## [v3.7.5] - 2026-11-25
 
 ### Fixed
