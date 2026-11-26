@@ -578,7 +578,7 @@ class QualityHardeningTests(unittest.TestCase):
                {"id": "new", "import_name": "b", "path": "b.py"}]
         identities, scope = quality.effective_scope(old, new, {"stable"}, set(), {"a", "b", "unknown"})
         self.assertEqual("stable", identities["a"])
-        self.assertTrue({"stable", "new", "unknown"} <= scope)
+        self.assertLessEqual({"stable", "new", "unknown"}, scope)
 
     def test_aggregate_checks_policy_digest_nested_outcomes_and_run_context(self):
         results, reports, tests = quality_fixture_reports()
