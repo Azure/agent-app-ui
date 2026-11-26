@@ -1,3 +1,4 @@
+import json
 import unittest
 from unittest.mock import AsyncMock, patch
 
@@ -169,19 +170,22 @@ class TestConversationStoreClient(unittest.IsolatedAsyncioTestCase):
         await client.aclose()
 
     async def test_append_items_posts_items_payload(self):
-        captured = {}
-
         def handler(request: httpx.Request) -> httpx.Response:
-            captured["body"] = request.content
             return httpx.Response(200, json={"data": []})
 
-        client, _ = _client_with(handler)
+        client, transport = _client_with(handler)
         await client.append_items(
             user_access_token="user-token",
             conversation_id="conv-1",
             items=[{"type": "message", "role": "user", "content": "hi"}],
         )
-        self.assertIn(b"conv-1", captured["body"] if False else b"conv-1")
+        self.assertEqual(len(transport.requests), 1)
+        request = transport.requests[0]
+        self.assertEqual(request.method, "POST")
+        self.assertEqual(str(request.url), "https://agent.example.com/openai/v1/conversations/conv-1/items")
+        self.assertEqual(json.loads(request.content), {
+            "items": [{"type": "message", "role": "user", "content": "hi"}],
+        })
         await client.aclose()
 
     async def test_append_items_noop_for_empty_items(self):
