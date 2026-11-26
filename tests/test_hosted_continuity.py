@@ -2,11 +2,7 @@ import unittest
 import unittest.mock
 
 from gpt_rag_ui.clients.hosted_agent_client import HostedAgentError
-from gpt_rag_ui.services.hosted_continuity import (
-    ContinuityPersistenceError,
-    ConversationNotFoundError,
-    HostedContinuityCoordinator,
-)
+from gpt_rag_ui.services import hosted_continuity as hc
 from gpt_rag_ui.config.hosted_continuity_config import HostedContinuitySettings
 from gpt_rag_ui.clients.hosted_conversation_capability import (
     ConversationCapabilityManager,
@@ -18,6 +14,10 @@ from gpt_rag_ui.clients.hosted_conversation_store import (
     ConversationStoreAccessDeniedError,
     ConversationStoreError,
 )
+
+ContinuityPersistenceError = hc.ContinuityPersistenceError
+ConversationNotFoundError = hc.ConversationNotFoundError
+HostedContinuityCoordinator = hc.HostedContinuityCoordinator
 
 OID_A = "11111111-1111-1111-1111-111111111111"
 OID_B = "22222222-2222-2222-2222-222222222222"
@@ -186,8 +186,6 @@ class ContinuityTestCase(unittest.IsolatedAsyncioTestCase):
         return coordinator, store
 
     async def _run(self, coordinator, stream_fn, **kwargs):
-        import gpt_rag_ui.services.hosted_continuity as hc
-
         defaults = dict(
             capability="",
             oid=OID_A,
@@ -428,8 +426,6 @@ class TestReadAppendErrors(ContinuityTestCase):
 
         stream_fn2, _ = await _fake_stream_factory([("second-answer", {})])
         capability = frames[0][1]["capability"]
-        import gpt_rag_ui.services.hosted_continuity as hc
-
         collected = []
         with self.assertRaises(ContinuityPersistenceError):
             with unittest.mock.patch.object(hc, "call_hosted_agent_stream", stream_fn2):
@@ -487,8 +483,6 @@ class TestOneInFlightConcurrency(ContinuityTestCase):
                 await asyncio.sleep(0.02)
             order.append("end")
             yield ("slow-answer" if is_slow else "fast-answer", {})
-
-        import gpt_rag_ui.services.hosted_continuity as hc
 
         async def run_slow():
             async for _ in coordinator.run_turn(
@@ -775,7 +769,7 @@ class TestDelegatedOwnerBinding(ContinuityTestCase):
         stream_fn, _ = await _fake_stream_factory([("answer", {})])
         frames = await self._run(coordinator, stream_fn, client_turn_id="turn-1")
         owner_ref = frames[0][1]["capability"]
-        conversation_id = frames[0][1]["conversation_id"]
+        expected_conversation_id = frames[0][1]["conversation_id"]
 
         original = store.list_items_ascending
 
@@ -784,6 +778,7 @@ class TestDelegatedOwnerBinding(ContinuityTestCase):
             # test isolates the *main* per-turn history read failure); any
             # other limit is the main read this test targets.
             if limit != 1:
+                self.assertEqual(conversation_id, expected_conversation_id)
                 raise ConversationStoreError("simulated main read failure")
             return await original(conversation_id=conversation_id, limit=limit, **kwargs)
 

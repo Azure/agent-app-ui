@@ -6,7 +6,7 @@ best-effort (a failure never fails the user's turn)."""
 import unittest
 import unittest.mock
 
-from gpt_rag_ui.services.hosted_continuity import HostedContinuityCoordinator
+from gpt_rag_ui.services import hosted_continuity as hc
 from gpt_rag_ui.clients.hosted_conversation_capability import ConversationCapabilityManager
 from gpt_rag_ui.clients.hosted_conversation_store import ConversationIdempotencyCache, ConversationLockRegistry
 
@@ -24,7 +24,7 @@ class OwnerIndexHookTests(unittest.IsolatedAsyncioTestCase):
             key_id=settings.capability_key_id,
             ttl_seconds=settings.capability_ttl_seconds,
         )
-        coordinator = HostedContinuityCoordinator(
+        coordinator = hc.HostedContinuityCoordinator(
             settings=settings,
             store=store,
             capability_manager=capabilities,
@@ -35,8 +35,6 @@ class OwnerIndexHookTests(unittest.IsolatedAsyncioTestCase):
         return coordinator, store
 
     async def _run(self, coordinator, stream_fn, **kwargs):
-        import gpt_rag_ui.services.hosted_continuity as hc
-
         defaults = dict(
             capability="",
             oid=OID_A,
