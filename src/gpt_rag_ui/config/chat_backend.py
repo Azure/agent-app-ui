@@ -9,7 +9,8 @@ DEFAULT_CHAT_BACKEND: ChatBackend = "hosted_agent"
 
 
 class ChatBackendConfig(Protocol):
-    def get(self, key: str, default: str, type: type) -> str: ...
+    def get(self, key: str, default: str, type: type) -> str:
+        """Return the configured chat backend setting or its default."""
 
 
 def resolve_chat_backend(value: str | None) -> ChatBackend:
