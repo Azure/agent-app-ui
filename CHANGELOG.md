@@ -4,6 +4,8 @@
 
 ### Changed
 
+- **Quality evaluator root resolution.** Retain root resolution and its
+  failures while removing an unused local assignment in exception validation.
 - **Classic chat stream cleanup.** Remove unused buffer resets after stream
   failures while preserving error messages and generator cleanup.
 

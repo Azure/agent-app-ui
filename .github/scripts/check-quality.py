@@ -1236,7 +1236,7 @@ def mypy_diagnostics(output, returncode):
 
 
 def validate_exception_records(handlers, records, root, *, verified_tests=(), stage="bootstrap", today=None):
-    root = root.resolve()
+    root.resolve()
     fields = ("module_id", "symbol", "handler_fingerprint")
     actual = {tuple(h[k] for k in fields): h for h in handlers}
     findings, used = [], []
