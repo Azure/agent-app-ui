@@ -65,7 +65,7 @@ class NativePresentationTests(unittest.IsolatedAsyncioTestCase):
             patch.object(native_chat.cl.user_session, "get", side_effect=lambda key: self.session.get(key)),
             patch.object(native_chat.cl.user_session, "set", side_effect=self.session.__setitem__),
             patch.object(native_chat.cl, "Message", side_effect=message),
-            patch.object(native_chat.cl, "CustomElement", side_effect=lambda **kwargs: SimpleNamespace(**kwargs)),
+            patch.object(native_chat.cl, "CustomElement", side_effect=SimpleNamespace),
             patch.object(native_chat, "replace_source_reference_links", side_effect=lambda text, *args, **kwargs: text),
             patch.object(native_chat, "format_hosted_citation_sources", return_value=""),
         ):
@@ -101,6 +101,18 @@ class NativePresentationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({action.name for action in self.messages[-1]["actions"]},
                          {"native_refresh", "native_approve", "native_reject"})
         self.assertIn("/reabrir ", self.messages[-1]["content"])
+
+    async def test_message_timeout_is_not_reported_as_invalid_input(self):
+        cases = (
+            (TimeoutError(), "Não foi possível concluir. Atualize antes de tentar novamente."),
+            (ValueError(), "Entrada inválida. Verifique o texto, tipo e tamanho dos anexos."),
+            (OSError(), "Entrada inválida. Verifique o texto, tipo e tamanho dos anexos."),
+        )
+        for error, expected in cases:
+            with self.subTest(error=type(error).__name__):
+                with patch.object(native_chat, "get_service", side_effect=error):
+                    await native_chat.handle_message(SimpleNamespace(content="hello", elements=[]))
+                self.assertEqual(self.messages[-1]["content"], expected)
 
     async def test_admitted_assistant_envelope_displays_exact_fallback_and_shared_element(self):
         fixture = json.loads((Path(__file__).parent / "fixtures/inline-presentation/presentation-valid.json").read_text())

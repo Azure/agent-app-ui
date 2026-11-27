@@ -2,7 +2,7 @@
 Provides dependencies for API calls.
 """
 import logging
-from fastapi import Depends, HTTPException
+from fastapi import HTTPException
 from gpt_rag_ui.config.appconfig import AppConfigClient
 
 __config: AppConfigClient = None

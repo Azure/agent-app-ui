@@ -2,10 +2,9 @@ import os
 import logging
 import threading
 
-from typing import Dict, Any, Protocol
+from typing import Any, Protocol
 from azure.identity import ChainedTokenCredential, ManagedIdentityCredential, AzureCliCredential
 from azure.identity.aio import ChainedTokenCredential as AsyncChainedTokenCredential, ManagedIdentityCredential as AsyncManagedIdentityCredential, AzureCliCredential as AsyncAzureCliCredential
-from azure.appconfiguration import AzureAppConfigurationClient
 from azure.core.exceptions import AzureError, ClientAuthenticationError
 from azure.appconfiguration.provider import (
     AzureAppConfigurationKeyVaultOptions,
@@ -51,7 +50,8 @@ NATIVE_UI_KEYS = (
 
 
 class IngestionUploadConfig(Protocol):
-    def get(self, key: str, default: str, type: type) -> str: ...
+    def get(self, key: str, default: str, type: type) -> str:
+        """Return the configured ingestion setting or its default."""
 
 
 def load_ingestion_uploads_enabled(config: IngestionUploadConfig) -> bool:

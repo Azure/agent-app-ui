@@ -22,7 +22,7 @@ OID = "bbbbbbbb-cccc-dddd-eeee-ffffffffffff"
 class PanelBearerValidationTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        public_jwk = json_jwk = __import__("json").loads(
+        public_jwk = __import__("json").loads(
             RSAAlgorithm.to_jwk(self.private_key.public_key())
         )
         public_jwk.update({"kid": "test-key", "use": "sig", "alg": "RS256"})

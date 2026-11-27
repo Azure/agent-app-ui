@@ -13,16 +13,13 @@ from starlette.websockets import WebSocketDisconnect
 
 from gpt_rag_ui.auth.embed_auth import COPILOT_SESSION_COOKIE
 from gpt_rag_ui.config.embed_config import EmbedSettings
-from gpt_rag_ui.auth.embed_security import (
-    _authenticated_socket_user,
-    _is_copilot_socket,
-    _terminate_socket,
-    configure_copilot_bridge_guards as _configure_copilot_bridge_guards,
-    CopilotSocketRegistry,
-    CopilotRequestMiddleware,
-    disconnect_copilot_session,
-)
-
+_authenticated_socket_user = embed_security._authenticated_socket_user
+_is_copilot_socket = embed_security._is_copilot_socket
+_terminate_socket = embed_security._terminate_socket
+_configure_copilot_bridge_guards = embed_security.configure_copilot_bridge_guards
+CopilotSocketRegistry = embed_security.CopilotSocketRegistry
+CopilotRequestMiddleware = embed_security.CopilotRequestMiddleware
+disconnect_copilot_session = embed_security.disconnect_copilot_session
 
 PORTAL = "https://portal.example.com"
 CHAT = "https://chat.example.com"

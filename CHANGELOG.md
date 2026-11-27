@@ -1,5 +1,23 @@
 # Changelog
 
+## [v3.7.6] - 2026-11-27
+
+### Fixed
+
+- **Native chat timeouts.** Report timeouts as runtime failures rather than
+  invalid input, while retaining a bounded user-facing error.
+- **History fallback diagnostics.** Log invalid fallback inputs without
+  changing the existing history behavior.
+
+### Changed
+
+- **Quality evaluator root resolution.** Retain root resolution and its
+  failures while removing an unused local assignment in exception validation.
+- **Protocol method documentation.** Describe configuration, credential,
+  token validation and metadata interfaces without changing their contracts.
+- **Classic chat stream cleanup.** Remove unused buffer resets after stream
+  failures while preserving error messages and generator cleanup.
+
 ## [v3.7.5] - 2026-11-25
 
 ### Fixed

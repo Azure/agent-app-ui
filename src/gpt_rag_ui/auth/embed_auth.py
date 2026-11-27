@@ -15,18 +15,13 @@ from dataclasses import dataclass, field
 from http.cookies import CookieError, SimpleCookie
 from typing import Literal, Protocol
 
-import httpx
 import jwt
 from chainlit.auth import create_jwt
 from chainlit.user import User
-from fastapi import FastAPI, status
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.responses import Response
 
-from gpt_rag_ui.auth.auth_common import canonical_principal_id, is_user_authorized
-from gpt_rag_ui.config.appconfig import AppConfigClient
-from gpt_rag_ui.config.embed_config import EmbedSettings
-from gpt_rag_ui.auth.entra_token import EntraTokenError
+from gpt_rag_ui.auth.auth_common import canonical_principal_id
 from gpt_rag_ui.telemetry.boundary_diagnostics import log_boundary_failure
 
 
@@ -531,7 +526,7 @@ def session_id_from_request(request: Request) -> str | None:
 
 class TokenValidator(Protocol):
     async def validate(self, token: str) -> dict:
-        ...
+        """Validate a token and return its claims."""
 
 
 

@@ -11,7 +11,7 @@ import tempfile
 import shutil
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import yaml
 
@@ -572,13 +572,28 @@ class QualityHardeningTests(unittest.TestCase):
             self.assertTrue(quality.validate_exception_records([handler], [changed], Path.cwd(), **kwargs)[0])
         self.assertTrue(quality.validate_exception_records([handler], [record], Path.cwd())[0])
 
+    def test_exception_validation_resolves_root_once_without_using_result(self):
+        root = Mock()
+        root.resolve.return_value = object()
+        self.assertEqual(([], []), quality.validate_exception_records([], [], root))
+        root.resolve.assert_called_once_with()
+
+    def test_exception_validation_propagates_root_resolution_failure_first(self):
+        failure = OSError("root resolution failed")
+        root = Mock()
+        root.resolve.side_effect = failure
+        with self.assertRaises(OSError) as raised:
+            quality.validate_exception_records(object(), [], root)
+        self.assertIs(failure, raised.exception)
+        root.resolve.assert_called_once_with()
+
     def test_protected_minimum_keeps_ids_and_covers_every_new_module(self):
         old = [{"id": "stable", "import_name": "a", "path": "a.py"}]
         new = [{"id": "laundered", "import_name": "a", "path": "a.py"},
                {"id": "new", "import_name": "b", "path": "b.py"}]
         identities, scope = quality.effective_scope(old, new, {"stable"}, set(), {"a", "b", "unknown"})
         self.assertEqual("stable", identities["a"])
-        self.assertTrue({"stable", "new", "unknown"} <= scope)
+        self.assertLessEqual({"stable", "new", "unknown"}, scope)
 
     def test_aggregate_checks_policy_digest_nested_outcomes_and_run_context(self):
         results, reports, tests = quality_fixture_reports()

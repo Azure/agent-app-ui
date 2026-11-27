@@ -235,10 +235,13 @@ async def handle_message(message: cl.Message) -> None:
             await cl.Message(content=str(exc)).send()
     except (PermissionError, NativeNotFound, NativeUnavailable, MetadataConflict, HostedToolFailure) as exc:
         await cl.Message(content=str(exc)).send()
+    except TimeoutError as exc:
+        logger.error("Native chat failed (type=%s)", type(exc).__name__)
+        await cl.Message(content="Não foi possível concluir. Atualize antes de tentar novamente.").send()
     except (ValueError, OSError) as exc:
         logger.warning("Native input denied (type=%s)", type(exc).__name__)
         await cl.Message(content="Entrada inválida. Verifique o texto, tipo e tamanho dos anexos.").send()
-    except (AzureError, OpenAIError, RpcError, TimeoutError, RuntimeError) as exc:
+    except (AzureError, OpenAIError, RpcError, RuntimeError) as exc:
         logger.error("Native chat failed (type=%s)", type(exc).__name__)
         await cl.Message(content="Não foi possível concluir. Atualize antes de tentar novamente.").send()
 

@@ -5,7 +5,6 @@ from azure.core.exceptions import ResourceNotFoundError, AzureError
 from urllib.parse import urlparse, unquote, quote
 import logging
 import os
-import time
 from datetime import datetime, timedelta, timezone
 import asyncio
 import json

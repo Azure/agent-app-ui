@@ -16,8 +16,11 @@ HostedAuthMode = Literal["user_delegated", "service_identity"]
 
 
 class NativeConfig(Protocol):
-    def get(self, key: str, default: str = "", type: type = str) -> str: ...
-    def refresh(self) -> None: ...
+    def get(self, key: str, default: str = "", type: type = str) -> str:
+        """Return the configured native UI setting or its default."""
+
+    def refresh(self) -> None:
+        """Refresh the available configuration."""
 
 
 class _ProductOptions(TypedDict):

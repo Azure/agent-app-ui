@@ -1,13 +1,10 @@
 import os
 import base64
 import json
-import re
 import uuid
 import logging
 import time
-import urllib.parse
 from typing import Optional, Set, Tuple
-from datetime import datetime, timedelta
 
 import chainlit as cl
 import httpx
@@ -29,15 +26,13 @@ from gpt_rag_ui.config.appconfig import (
     ATTACHMENTS_UNAVAILABLE_MESSAGE,
     load_ingestion_uploads_enabled,
 )
-from gpt_rag_ui.clients.blob import BlobClient
 from gpt_rag_ui.services.conversation_security import get_owned_conversation
 from gpt_rag_ui.clients.ingestion_client import ingest_files_session
-from gpt_rag_ui.services.download_security import get_download_tokens, is_download_target_allowed
 from gpt_rag_ui.auth.embed_auth import is_copilot_session_active, resolve_access_token
 from gpt_rag_ui.auth.auth_common import DelegationError
 from gpt_rag_ui.auth.recovery import offer_auth_recovery
 
-from gpt_rag_ui.util.constants import APPLICATION_INSIGHTS_CONNECTION_STRING, APP_NAME, UUID_REGEX, REFERENCE_REGEX, TERMINATE_TOKEN
+from gpt_rag_ui.util.constants import APPLICATION_INSIGHTS_CONNECTION_STRING, APP_NAME, UUID_REGEX, TERMINATE_TOKEN
 from gpt_rag_ui.telemetry.monitoring import Telemetry
 from gpt_rag_ui.telemetry.boundary_diagnostics import log_boundary_failure
 from opentelemetry.trace import SpanKind
@@ -753,8 +748,6 @@ async def handle_message(message: cl.Message):
         # ----------------------------------------------
 
 
-        app_user = cl.user_session.get("user")
-
         span.set_attribute('question_id', message.id)
         span.set_attribute('conversation_id', conversation_id)
         span.set_attribute('user_id', auth_info.get('client_principal_id', 'anonymous'))
@@ -1282,7 +1275,6 @@ async def handle_message(message: cl.Message):
                     f"{message.id}."
                 )
                 full_text = user_error_message
-                buffer = ""
                 await response_msg.stream_token(user_error_message)
 
             except httpx.TimeoutException as e:
@@ -1298,7 +1290,6 @@ async def handle_message(message: cl.Message):
                     f"{message.id}."
                 )
                 full_text = user_error_message
-                buffer = ""
                 await response_msg.stream_token(user_error_message)
 
             except Exception as e:
@@ -1313,7 +1304,6 @@ async def handle_message(message: cl.Message):
                     message.id,
                 )
                 full_text = user_error_message
-                buffer = ""
                 await response_msg.stream_token(user_error_message)
 
             finally:

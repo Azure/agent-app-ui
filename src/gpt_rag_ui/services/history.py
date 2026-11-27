@@ -163,7 +163,7 @@ class HistoryService:
             try:
                 skip = int(pagination.cursor)
             except (ValueError, TypeError):
-                pass
+                logger.warning("list_threads: invalid pagination cursor; starting at zero")
 
         result = await call_orchestrator_list_conversations(
             access_token=access_token,
@@ -246,7 +246,7 @@ class HistoryService:
                 else:
                     created_at = datetime.fromtimestamp(ts_value).isoformat() + "Z"
             except (ValueError, TypeError):
-                pass
+                logger.warning("get_thread: invalid creation timestamp; leaving it unset")
 
         return ThreadDict(
             id=conv["id"],

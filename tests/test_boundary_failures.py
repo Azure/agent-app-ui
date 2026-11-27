@@ -143,6 +143,51 @@ class BoundaryFailureTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual([True], closed)
                 response.update.assert_awaited_once()
 
+    async def test_classic_stream_failures_after_partial_output_close_generator(self):
+        chat = self.chat()
+        partial = "Partial answer before the connection failed. "
+        for failure, expected in (
+            (httpx.ConnectError("connection failed"), "couldn't reach"),
+            (httpx.ReadTimeout("request timed out"), "took too long"),
+            (RuntimeError("stream failed"), "technical issue"),
+        ):
+            with self.subTest(failure=type(failure).__name__), ExitStack() as stack:
+                closed = []
+
+                async def stream(*args, **kwargs):
+                    try:
+                        yield partial
+                        raise failure
+                    finally:
+                        closed.append(True)
+
+                response = AsyncMock()
+                response.content = ""
+                fake_cl = SimpleNamespace(
+                    Message=Mock(return_value=response),
+                    user_session=SimpleNamespace(get=lambda key: None, set=Mock()),
+                    chat_context=SimpleNamespace(to_openai=lambda: []),
+                )
+                for name, value in {
+                    "cl": fake_cl, "tracer": MagicMock(), "CHAT_BACKEND": "orchestrator",
+                    "HOSTED_CONTINUITY_ENABLED": False, "SHOW_STATISTICS": False,
+                    "ENABLE_FEEDBACK": False,
+                    "get_auth_info": AsyncMock(return_value={"authorized": True}),
+                    "call_orchestrator_stream": stream,
+                }.items():
+                    stack.enter_context(patch.object(chat, name, value))
+                with self.assertLogs(chat.logger, level="ERROR"):
+                    await chat.handle_message(SimpleNamespace(
+                        id="stream-reference", content="question", elements=[],
+                    ))
+                chunks = [call.args[0] for call in response.stream_token.await_args_list]
+                self.assertEqual(partial, chunks[-2])
+                self.assertIn(expected, chunks[-1])
+                self.assertIn("stream-reference", chunks[-1])
+                self.assertIn(expected, response.content)
+                self.assertEqual([True], closed)
+                response.update.assert_awaited_once()
+
     async def test_ingestion_failure_does_not_claim_processed_success(self):
         chat = self.chat()
         response = AsyncMock()

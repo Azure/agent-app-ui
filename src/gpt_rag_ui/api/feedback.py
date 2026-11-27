@@ -58,6 +58,7 @@ def register_feedback_handlers(
 
         feedback_msg = cl.Message(content="", elements=[feedback_element])
         await feedback_msg.send()
+        return None
 
     @cl.action_callback("submit_feedback")
     async def handle_feedback(action):

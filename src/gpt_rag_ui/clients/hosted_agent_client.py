@@ -113,9 +113,11 @@ class HostedAgentCancelledError(HostedAgentError):
 
 
 class AsyncCredential(Protocol):
-    async def get_token(self, *scopes: str, **kwargs: Any) -> AccessToken: ...
+    async def get_token(self, *scopes: str, **kwargs: Any) -> AccessToken:
+        """Acquire an access token for the requested scopes."""
 
-    async def close(self) -> None: ...
+    async def close(self) -> None:
+        """Release credential resources."""
 
 
 @dataclass(frozen=True)
@@ -686,7 +688,6 @@ class HostedAgentClient:
             self.settings.invocations_url,
         )
 
-        terminal_event_seen = False
         async with self._http_client.stream(
             "POST",
             self.settings.invocations_url,
@@ -767,21 +768,18 @@ class HostedAgentClient:
                         }
                     }
                 elif event_type == "response.completed":
-                    terminal_event_seen = True
                     yield "", {
                         "completed": True,
                         "conversation_id": managed_conversation_id,
                     }
                     return
                 elif event_type == "response.cancelled":
-                    terminal_event_seen = True
                     reason = data.get("reason")
                     safe_reason = reason if isinstance(reason, str) and reason in {
                         "client_cancelled", "timeout", "shutdown",
                     } else "cancelled"
                     raise HostedAgentCancelledError(f"Hosted agent {safe_reason}.")
                 elif event_type in {"error", "response.failed"}:
-                    terminal_event_seen = True
                     if event_type == "response.failed":
                         failed_response = data.get("response")
                         failed_error = failed_response.get("error") if isinstance(failed_response, dict) else None
@@ -793,10 +791,9 @@ class HostedAgentClient:
                         claims_challenge=data.get("claims_challenge"),
                     )
 
-        if not terminal_event_seen:
-            raise HostedAgentProtocolError(
-                "Hosted-agent SSE stream ended without a terminal response frame."
-            )
+        raise HostedAgentProtocolError(
+            "Hosted-agent SSE stream ended without a terminal response frame."
+        )
 
 
 _default_client: HostedAgentClient | None = None

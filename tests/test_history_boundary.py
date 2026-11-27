@@ -51,6 +51,36 @@ class HistoryBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.principal, result.data[0]["userId"])
         backend.assert_awaited_once_with(access_token="token", skip=2, limit=7)
 
+    async def test_invalid_cursor_uses_first_page_and_logs_without_cursor(self):
+        with (
+            patch.object(service, "is_copilot_session_active", AsyncMock(return_value=True)),
+            patch.object(service, "resolve_access_token", AsyncMock(return_value="token")),
+            patch.object(service, "call_orchestrator_list_conversations",
+                         AsyncMock(return_value={"conversations": []})) as backend,
+            self.assertLogs(service.logger, level="WARNING") as logs,
+        ):
+            result = await service.HistoryService().list_threads(
+                service.HistoryOperationContext(metadata=self.metadata),
+                Pagination(first=7, cursor="invalid-private-cursor"), ThreadFilter(),
+            )
+        backend.assert_awaited_once_with(access_token="token", skip=0, limit=7)
+        self.assertEqual("0", result.pageInfo.startCursor)
+        self.assertNotIn("invalid-private-cursor", "\n".join(logs.output))
+
+    async def test_invalid_thread_timestamp_is_unset_and_logged(self):
+        with (
+            patch.object(service, "is_copilot_session_active", AsyncMock(return_value=True)),
+            patch.object(service, "get_owned_conversation", AsyncMock(return_value={
+                "id": "thread", "_ts": {"invalid": "private-value"},
+            })),
+            self.assertLogs(service.logger, level="WARNING") as logs,
+        ):
+            thread = await service.HistoryService().get_thread(
+                service.HistoryOperationContext(metadata=self.metadata), "thread"
+            )
+        self.assertIsNone(thread["createdAt"])
+        self.assertNotIn("private-value", "\n".join(logs.output))
+
     async def test_request_metadata_is_consumed_once_and_task_local(self):
         async def consume(value):
             api._request_user_metadata.set(value)

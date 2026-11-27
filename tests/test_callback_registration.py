@@ -34,18 +34,22 @@ class TestCallbackRegistration(unittest.TestCase):
         auth.register_oauth_callback = Mock()
         feedback_module = ModuleType("gpt_rag_ui.api.feedback")
         feedback_module.register_feedback_handlers = Mock()
+        recovery = ModuleType("gpt_rag_ui.auth.recovery")
+        recovery.register_recovery_action = Mock()
         modules = {
             "chainlit": chainlit,
             "gpt_rag_ui.services": services,
             "gpt_rag_ui.api.history": history,
             "gpt_rag_ui.api.oauth": auth,
             "gpt_rag_ui.api.feedback": feedback_module,
+            "gpt_rag_ui.auth.recovery": recovery,
         }
         callbacks = importlib.util.module_from_spec(spec)
         with patch.dict(sys.modules, modules):
             spec.loader.exec_module(callbacks)
             callbacks.register_callbacks()
             callbacks.register_callbacks()
+        recovery.register_recovery_action.assert_called_once_with()
         for name in ("on_chat_start", "on_chat_resume", "on_message"):
             getattr(chainlit, name).assert_called_once_with(getattr(chat, {
                 "on_message": "handle_message",
