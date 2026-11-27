@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [v3.7.6] - 2026-11-27
+
+### Fixed
+
+- **Native chat timeouts.** Report timeouts as runtime failures rather than
+  invalid input, while retaining a bounded user-facing error.
+- **History fallback diagnostics.** Log invalid fallback inputs without
+  changing the existing history behavior.
+
 ### Changed
 
 - **Quality evaluator root resolution.** Retain root resolution and its
