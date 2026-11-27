@@ -6,6 +6,8 @@
 
 - **Quality evaluator root resolution.** Retain root resolution and its
   failures while removing an unused local assignment in exception validation.
+- **Protocol method documentation.** Describe configuration, credential,
+  token validation and metadata interfaces without changing their contracts.
 - **Classic chat stream cleanup.** Remove unused buffer resets after stream
   failures while preserving error messages and generator cleanup.
 

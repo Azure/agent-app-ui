@@ -113,9 +113,11 @@ class HostedAgentCancelledError(HostedAgentError):
 
 
 class AsyncCredential(Protocol):
-    async def get_token(self, *scopes: str, **kwargs: Any) -> AccessToken: ...
+    async def get_token(self, *scopes: str, **kwargs: Any) -> AccessToken:
+        """Acquire an access token for the requested scopes."""
 
-    async def close(self) -> None: ...
+    async def close(self) -> None:
+        """Release credential resources."""
 
 
 @dataclass(frozen=True)

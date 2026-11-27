@@ -49,7 +49,8 @@ EnumerationMode = Literal["owner_index", "delegated"]
 
 
 class PanelConfig(Protocol):
-    def get(self, key: str, default: str, type: type) -> str: ...
+    def get(self, key: str, default: str, type: type) -> str:
+        """Return the configured panel setting or its default."""
 
 _TRUE_VALUES = {"1", "true", "yes", "y", "on"}
 _FALSE_VALUES = {"0", "false", "no", "n", "off"}

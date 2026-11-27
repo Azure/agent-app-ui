@@ -56,7 +56,8 @@ HistoryTruncation = Literal["drop_oldest"]
 
 
 class ContinuityConfig(Protocol):
-    def get(self, key: str, default: str, type: type) -> str: ...
+    def get(self, key: str, default: str, type: type) -> str:
+        """Return the configured continuity setting or its default."""
 
 _TRUE_VALUES = {"1", "true", "yes", "y", "on"}
 _FALSE_VALUES = {"0", "false", "no", "n", "off"}
