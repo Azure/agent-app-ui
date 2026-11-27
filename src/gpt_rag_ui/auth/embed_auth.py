@@ -526,7 +526,7 @@ def session_id_from_request(request: Request) -> str | None:
 
 class TokenValidator(Protocol):
     async def validate(self, token: str) -> dict:
-        ...
+        """Validate a token and return its claims."""
 
 
 

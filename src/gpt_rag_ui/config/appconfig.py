@@ -50,7 +50,8 @@ NATIVE_UI_KEYS = (
 
 
 class IngestionUploadConfig(Protocol):
-    def get(self, key: str, default: str, type: type) -> str: ...
+    def get(self, key: str, default: str, type: type) -> str:
+        """Return the configured ingestion setting or its default."""
 
 
 def load_ingestion_uploads_enabled(config: IngestionUploadConfig) -> bool:

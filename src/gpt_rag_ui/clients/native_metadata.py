@@ -19,11 +19,20 @@ class MetadataConflict(RuntimeError):
 
 
 class MetadataStore(Protocol):
-    async def get(self, owner: str, id: str) -> dict[str, Any] | None: ...
-    async def create(self, row: dict[str, Any]) -> dict[str, Any]: ...
-    async def replace(self, row: dict[str, Any]) -> dict[str, Any]: ...
-    async def list(self, owner: str, kind: str) -> list[dict[str, Any]]: ...
-    async def aclose(self) -> None: ...
+    async def get(self, owner: str, id: str) -> dict[str, Any] | None:
+        """Retrieve an owner's record by ID, or return None if absent."""
+
+    async def create(self, row: dict[str, Any]) -> dict[str, Any]:
+        """Create a product metadata record."""
+
+    async def replace(self, row: dict[str, Any]) -> dict[str, Any]:
+        """Replace an existing product metadata record."""
+
+    async def list(self, owner: str, kind: str) -> list[dict[str, Any]]:
+        """List an owner's records of the requested kind."""
+
+    async def aclose(self) -> None:
+        """Release metadata store resources."""
 
 
 class MemoryMetadata:
