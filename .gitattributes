@@ -7,3 +7,5 @@ tests/fixtures/inline-presentation/*.json text eol=lf
 
 # CHANGELOG.md is historically stored with CRLF in the index.
 CHANGELOG.md whitespace=cr-at-eol
+
+.github/workflows/*.lock.yml linguist-generated=true
